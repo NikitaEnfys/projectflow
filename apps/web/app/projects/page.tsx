@@ -1,0 +1,7 @@
+import Link from "next/link";
+import { serverApi } from "@/lib/api/server";
+
+export default async function ProjectsPage() {
+  const projects = await serverApi<any[]>("/api/projects");
+  return <main><div className="mb-6"><h1 className="text-3xl font-bold">Projektek</h1><p className="mt-2 text-sm text-gray-600">A számodra elérhető projektek listája.</p></div>{projects.length === 0 ? <div className="rounded-xl border p-6"><p>Nincs számodra elérhető projekt.</p></div> : <div className="grid gap-4">{projects.map((project) => <Link key={project.id} href={`/projects/${project.id}`} className="block rounded-xl border p-5 shadow-sm transition hover:bg-gray-50"><h2 className="text-xl font-semibold">{project.name}</h2><p className="mt-2 text-sm text-gray-700">{project.description || "Nincs leírás."}</p><div className="mt-4 grid gap-2 text-sm text-gray-600"><p><span className="font-medium text-black">Ügyfél:</span> {project.client?.name || "Nincs ügyfél"}</p><p><span className="font-medium text-black">Felelős:</span> {project.owner?.name || "Nincs felelős"}</p><p><span className="font-medium text-black">Státusz:</span> {project.status}</p><p><span className="font-medium text-black">Határidő:</span> {project.dueDate ? new Date(project.dueDate).toLocaleDateString("hu-HU") : "Nincs megadva"}</p><p><span className="font-medium text-black">Előrehaladás:</span> {project.progress}%</p></div></Link>)}</div>}</main>;
+}
