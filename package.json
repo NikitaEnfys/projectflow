@@ -1,33 +1,19 @@
 {
   "name": "projectflow",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "eslint",
-    "db:bootstrap": "node --env-file=.env scripts/bootstrap-organization.mjs"
-  },
-  "dependencies": {
-    "@prisma/adapter-pg": "^7.6.0",
-    "@prisma/client": "^7.6.0",
-    "next": "16.2.1",
-    "pg": "^8.20.0",
-    "react": "19.2.4",
-    "react-dom": "19.2.4",
-    "@supabase/ssr": "^0.12.4",
-    "@supabase/supabase-js": "^2.111.0"
-  },
-  "devDependencies": {
-    "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "eslint": "^9",
-    "eslint-config-next": "16.2.1",
-    "prisma": "^7.6.0",
-    "tailwindcss": "^4",
-    "typescript": "^5"
+    "dev": "node scripts/dev.mjs",
+    "dev:web": "npm run dev --workspace @projectflow/web",
+    "dev:api": "npm run dev --workspace @projectflow/api",
+    "build": "npm run build --workspace @projectflow/contracts && npm run build --workspace @projectflow/api && npm run build --workspace @projectflow/web",
+    "lint": "npm run lint --workspace @projectflow/api && npm run lint --workspace @projectflow/web",
+    "db:generate": "npm run db:generate --workspace @projectflow/api",
+    "db:migrate": "npm run db:migrate --workspace @projectflow/api",
+    "db:bootstrap": "node --env-file=apps/api/.env scripts/bootstrap-organization.mjs"
   }
 }
