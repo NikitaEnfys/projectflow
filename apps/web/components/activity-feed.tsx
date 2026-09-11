@@ -9,13 +9,13 @@ type Activity = {
 };
 
 export function ActivityFeed({ activities }: { activities: Activity[] }) {
-  return <section className="mb-8 rounded-xl border p-6">
+  return <section className="pf-card mb-7 p-5 sm:p-6">
     <div className="mb-5">
       <h2 className="text-2xl font-semibold">Aktivitás</h2>
       <p className="mt-1 text-sm text-gray-600">A projekt fontosabb változásai időrendben.</p>
     </div>
     {activities.length === 0 ? <p className="text-sm text-gray-500">Még nincs naplózott aktivitás.</p> : <div className="grid gap-3">
-      {activities.map(activity => <article key={activity.id} className="rounded-lg border p-3">
+      {activities.map(activity => <article key={activity.id} className="rounded-xl border border-[#e8ebf1] bg-white p-3.5">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div>
             <p className="text-sm"><span className="font-medium">{activity.user?.name ?? "Rendszer"}</span> · {activity.message}</p>

@@ -172,7 +172,7 @@ export function ProjectTeamManager({
   }
 
   return (
-    <section className="mb-8 rounded-xl border p-6 shadow-sm">
+    <section className="mb-8 pf-card p-5 sm:p-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h2 className="text-2xl font-semibold">Projektcsapat</h2>
@@ -187,11 +187,11 @@ export function ProjectTeamManager({
         )}
       </div>
 
-      {error && <div className="mt-4 rounded-lg border border-red-500/50 bg-red-950/30 p-3 text-sm text-red-200">{error}</div>}
-      {message && <div className="mt-4 rounded-lg border border-green-500/50 bg-green-950/20 p-3 text-sm text-green-200">{message}</div>}
+      {error && <div className="mt-4 rounded-lg border border-red-500/50 bg-[#fff2f4] p-3 text-sm text-[#b33d50]">{error}</div>}
+      {message && <div className="mt-4 rounded-lg border border-green-500/50 bg-[#eef9f4] p-3 text-sm text-[#187555]">{message}</div>}
 
       {canManage && (
-        <div className="mt-5 rounded-lg border p-4">
+        <div className="mt-5 rounded-xl border border-[#e8ebf1] bg-[#fbfcff] p-4">
           <h3 className="font-medium">Tag hozzáadása</h3>
           {availableCandidates.length === 0 ? (
             <p className="mt-2 text-sm text-gray-600">A szervezet minden felhasználója már tagja ennek a projektnek.</p>
@@ -205,10 +205,10 @@ export function ProjectTeamManager({
                   setSelectedUserId(nextUserId);
                   setSelectedRole(candidate?.organizationRole === "CLIENT" ? "CLIENT" : "MEMBER");
                 }}
-                className="rounded-lg border bg-transparent px-3 py-2 text-sm"
+                className="rounded-xl border bg-white px-3 py-2 text-sm"
               >
                 {availableCandidates.map((candidate) => (
-                  <option key={candidate.userId} value={candidate.userId} className="bg-black">
+                  <option key={candidate.userId} value={candidate.userId} className="bg-white">
                     {candidate.name} — {candidate.email}
                   </option>
                 ))}
@@ -216,10 +216,10 @@ export function ProjectTeamManager({
               <select
                 value={selectedRole}
                 onChange={(event) => setSelectedRole(event.target.value as ProjectRoleValue)}
-                className="rounded-lg border bg-transparent px-3 py-2 text-sm"
+                className="rounded-xl border bg-white px-3 py-2 text-sm"
               >
                 {addableRoles.map((role) => (
-                  <option key={role} value={role} className="bg-black">{ROLE_LABELS[role]}</option>
+                  <option key={role} value={role} className="bg-white">{ROLE_LABELS[role]}</option>
                 ))}
               </select>
               <button
@@ -240,7 +240,7 @@ export function ProjectTeamManager({
       ) : (
         <div className="mt-5 grid gap-3">
           {members.map((member) => (
-            <div key={member.id} className="flex flex-wrap items-center justify-between gap-4 rounded-lg border p-4">
+            <div key={member.id} className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-[#e8ebf1] bg-[#fbfcff] p-4">
               <div>
                 <p className="font-medium">
                   {member.user.name}
@@ -255,17 +255,17 @@ export function ProjectTeamManager({
                     value={member.role}
                     onChange={(event) => changeRole(member, event.target.value as ProjectRoleValue)}
                     disabled={busyId === member.id}
-                    className="rounded-lg border bg-transparent px-3 py-2 text-sm"
+                    className="rounded-xl border bg-white px-3 py-2 text-sm"
                   >
                     {PROJECT_ROLES.map((role) => (
-                      <option key={role} value={role} className="bg-black">{ROLE_LABELS[role]}</option>
+                      <option key={role} value={role} className="bg-white">{ROLE_LABELS[role]}</option>
                     ))}
                   </select>
                   <button
                     type="button"
                     onClick={() => removeMember(member)}
                     disabled={busyId === member.id}
-                    className="rounded-lg border px-3 py-2 text-sm hover:bg-white/5 disabled:opacity-50"
+                    className="rounded-lg border px-3 py-2 text-sm hover:bg-[#f7f8fc] disabled:opacity-50"
                   >
                     Eltávolítás
                   </button>

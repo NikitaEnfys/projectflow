@@ -135,31 +135,31 @@ export function OrganizationTeamManager({ organizationId, currentUserId, current
   }
 
   return <div className="space-y-8">
-    {error && <div className="rounded-lg border border-red-500/50 bg-red-950/30 p-3 text-sm text-red-200">{error}</div>}
-    {message && <div className="rounded-lg border border-green-500/50 bg-green-950/20 p-3 text-sm text-green-200">{message}</div>}
+    {error && <div className="rounded-lg border border-red-500/50 bg-[#fff2f4] p-3 text-sm text-[#b33d50]">{error}</div>}
+    {message && <div className="rounded-lg border border-green-500/50 bg-[#eef9f4] p-3 text-sm text-[#187555]">{message}</div>}
 
-    <section className="rounded-xl border p-6 shadow-sm">
+    <section className="pf-card p-5 sm:p-6">
       <h2 className="text-2xl font-semibold">Új tag meghívása</h2>
       <p className="mt-1 text-sm text-gray-500">Ügyfél meghívásakor válaszd ki azt az ügyfélcéget is, amelyhez a felhasználó tartozik.</p>
       <div className="mt-5 grid gap-3 md:grid-cols-[minmax(0,1fr)_220px_auto]">
         <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="nev@ceg.hu" className="rounded-lg border bg-transparent px-3 py-2" />
         <select value={role} onChange={(e) => setRole(e.target.value as Role)} className="rounded-lg border bg-transparent px-3 py-2">
-          {selectableRoles.map((r) => <option className="bg-black" key={r} value={r}>{LABELS[r]}</option>)}
+          {selectableRoles.map((r) => <option className="bg-white" key={r} value={r}>{LABELS[r]}</option>)}
         </select>
-        <button type="button" disabled={!email || busy === "invite" || (role === "CLIENT" && !inviteClientId)} onClick={invite} className="rounded-lg bg-white px-4 py-2 font-medium text-black disabled:opacity-50">{busy === "invite" ? "Létrehozás…" : "Meghívás"}</button>
+        <button type="button" disabled={!email || busy === "invite" || (role === "CLIENT" && !inviteClientId)} onClick={invite} className="rounded-lg bg-[#5b67f1] px-4 py-2 font-medium text-white disabled:opacity-50">{busy === "invite" ? "Létrehozás…" : "Meghívás"}</button>
       </div>
       {role === "CLIENT" && <div className="mt-3">
         <label className="mb-2 block text-sm font-medium">Ügyfélcég</label>
         {clients.length ? <select value={inviteClientId} onChange={(e) => setInviteClientId(e.target.value)} className="w-full rounded-lg border bg-transparent px-3 py-2 md:max-w-xl">
-          {clients.map((client) => <option className="bg-black" key={client.id} value={client.id}>{client.name}</option>)}
+          {clients.map((client) => <option className="bg-white" key={client.id} value={client.id}>{client.name}</option>)}
         </select> : <p className="text-sm text-amber-300">Előbb hozz létre egy ügyfélcéget.</p>}
       </div>}
     </section>
 
-    <section className="rounded-xl border p-6 shadow-sm">
+    <section className="pf-card p-5 sm:p-6">
       <h2 className="text-2xl font-semibold">Szervezeti tagok</h2>
       <div className="mt-5 space-y-3">
-        {members.map((member) => <div key={member.id} className="rounded-lg border p-4">
+        {members.map((member) => <div key={member.id} className="rounded-xl border border-[#e8ebf1] bg-[#fbfcff] p-4">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
               <p className="font-medium">{member.user.name}{member.userId === currentUserId && <span className="ml-2 text-xs text-gray-500">(te)</span>}</p>
@@ -167,16 +167,16 @@ export function OrganizationTeamManager({ organizationId, currentUserId, current
               {member.role === "CLIENT" && <p className="mt-1 text-xs text-gray-500">Ügyfélcég: {member.clientName ?? "nincs hozzárendelve"}</p>}
             </div>
             {member.role === "OWNER" ? <span className="rounded-full border px-3 py-1 text-xs">Tulajdonos</span> : <div className="flex flex-wrap gap-2">
-              <select value={member.role} disabled={busy === member.id || (currentUserRole === "ADMIN" && member.role === "ADMIN")} onChange={(e) => changeRole(member, e.target.value as Role)} className="rounded-lg border bg-transparent px-3 py-2 text-sm">
-                {selectableRoles.map((r) => <option className="bg-black" key={r} value={r}>{LABELS[r]}</option>)}
+              <select value={member.role} disabled={busy === member.id || (currentUserRole === "ADMIN" && member.role === "ADMIN")} onChange={(e) => changeRole(member, e.target.value as Role)} className="rounded-xl border bg-white px-3 py-2 text-sm">
+                {selectableRoles.map((r) => <option className="bg-white" key={r} value={r}>{LABELS[r]}</option>)}
               </select>
               <button disabled={busy === member.id || member.userId === currentUserId || (currentUserRole === "ADMIN" && member.role === "ADMIN")} onClick={() => remove(member)} className="rounded-lg border px-3 py-2 text-sm disabled:opacity-40">Eltávolítás</button>
             </div>}
           </div>
           {member.role === "CLIENT" && <div className="mt-4 grid gap-2 md:grid-cols-[minmax(0,1fr)_auto]">
-            <select value={clientSelections[member.userId] ?? ""} onChange={(e) => setClientSelections((items) => ({ ...items, [member.userId]: e.target.value }))} className="rounded-lg border bg-transparent px-3 py-2 text-sm">
-              <option className="bg-black" value="">Nincs ügyfélcéghez rendelve</option>
-              {clients.map((client) => <option className="bg-black" key={client.id} value={client.id}>{client.name}</option>)}
+            <select value={clientSelections[member.userId] ?? ""} onChange={(e) => setClientSelections((items) => ({ ...items, [member.userId]: e.target.value }))} className="rounded-xl border bg-white px-3 py-2 text-sm">
+              <option className="bg-white" value="">Nincs ügyfélcéghez rendelve</option>
+              {clients.map((client) => <option className="bg-white" key={client.id} value={client.id}>{client.name}</option>)}
             </select>
             <button onClick={() => assignClient(member)} disabled={busy === `client-${member.id}`} className="rounded-lg border px-3 py-2 text-sm disabled:opacity-50">{busy === `client-${member.id}` ? "Mentés…" : "Ügyfélkapcsolat mentése"}</button>
           </div>}
@@ -184,9 +184,9 @@ export function OrganizationTeamManager({ organizationId, currentUserId, current
       </div>
     </section>
 
-    <section className="rounded-xl border p-6 shadow-sm">
+    <section className="pf-card p-5 sm:p-6">
       <h2 className="text-2xl font-semibold">Függő meghívások</h2>
-      {invitations.length === 0 ? <p className="mt-4 text-sm text-gray-500">Nincs függő meghívó.</p> : <div className="mt-5 space-y-3">{invitations.map((inv) => <div key={inv.id} className="flex flex-wrap items-center justify-between gap-4 rounded-lg border p-4">
+      {invitations.length === 0 ? <p className="mt-4 text-sm text-gray-500">Nincs függő meghívó.</p> : <div className="mt-5 space-y-3">{invitations.map((inv) => <div key={inv.id} className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-[#e8ebf1] bg-[#fbfcff] p-4">
         <div>
           <p className="font-medium">{inv.email}</p>
           <p className="text-sm text-gray-500">{LABELS[inv.role]} · meghívta: {inv.invitedBy.name}</p>

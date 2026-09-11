@@ -61,26 +61,26 @@ export default function NewProjectPage() {
   }
 
   if (isLoadingOptions) return <main><p>Betöltés...</p></main>;
-  if (allowed === false) return <main><div className="rounded-xl border p-6"><h1 className="text-2xl font-bold">Nincs jogosultságod</h1><p className="mt-2 text-sm text-gray-600">Új projektet csak tulajdonos, adminisztrátor vagy projektvezető hozhat létre.</p></div></main>;
+  if (allowed === false) return <main><div className="pf-card p-5 sm:p-6"><h1 className="text-2xl font-bold">Nincs jogosultságod</h1><p className="mt-2 text-sm text-gray-600">Új projektet csak tulajdonos, adminisztrátor vagy projektvezető hozhat létre.</p></div></main>;
 
-  return <main><div className="mx-auto max-w-3xl"><h1 className="mb-6 text-3xl font-bold">Új projekt létrehozása</h1><div className="rounded-xl border p-6 shadow-sm">
+  return <div className="pf-page"><div className="mx-auto max-w-3xl"><div className="pf-page-header"><div><p className="pf-eyebrow">Új munka</p><h1 className="pf-title">Új projekt</h1><p className="pf-subtitle">Állítsd be az alapadatokat, a felelőst és a fontos dátumokat.</p></div></div><div className="pf-card p-5 sm:p-7">
     <form onSubmit={handleSubmit} className="space-y-5">
-      <div><label className="mb-2 block text-sm font-medium">Projekt neve</label><input className="w-full rounded-lg border bg-transparent p-3" value={name} onChange={(e)=>setName(e.target.value)} placeholder="Pl. Céges weboldal redesign" /></div>
-      <div><label className="mb-2 block text-sm font-medium">Leírás</label><textarea className="w-full rounded-lg border bg-transparent p-3" value={description} onChange={(e)=>setDescription(e.target.value)} rows={4} /></div>
+      <div><label className="mb-2 block text-sm font-medium">Projekt neve</label><input className="w-full rounded-xl border bg-white p-3" value={name} onChange={(e)=>setName(e.target.value)} placeholder="Pl. Céges weboldal redesign" /></div>
+      <div><label className="mb-2 block text-sm font-medium">Leírás</label><textarea className="w-full rounded-xl border bg-white p-3" value={description} onChange={(e)=>setDescription(e.target.value)} rows={4} /></div>
       <div className="grid gap-4 md:grid-cols-2">
-        <div><label className="mb-2 block text-sm font-medium">Ügyfél</label><select className="w-full rounded-lg border bg-transparent p-3" value={clientId} onChange={(e)=>setClientId(e.target.value)}><option value="">Válassz ügyfelet</option>{clients.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
-        <div><label className="mb-2 block text-sm font-medium">Projektvezető</label><select className="w-full rounded-lg border bg-transparent p-3" value={ownerId} onChange={(e)=>setOwnerId(e.target.value)}><option value="">Válassz felelőst</option>{users.map(u=><option key={u.id} value={u.id}>{u.name} ({u.email})</option>)}</select></div>
+        <div><label className="mb-2 block text-sm font-medium">Ügyfél</label><select className="w-full rounded-xl border bg-white p-3" value={clientId} onChange={(e)=>setClientId(e.target.value)}><option value="">Válassz ügyfelet</option>{clients.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
+        <div><label className="mb-2 block text-sm font-medium">Projektvezető</label><select className="w-full rounded-xl border bg-white p-3" value={ownerId} onChange={(e)=>setOwnerId(e.target.value)}><option value="">Válassz felelőst</option>{users.map(u=><option key={u.id} value={u.id}>{u.name} ({u.email})</option>)}</select></div>
       </div>
       <div className="grid gap-4 md:grid-cols-2">
-        <div><label className="mb-2 block text-sm font-medium">Státusz</label><select className="w-full rounded-lg border bg-transparent p-3" value={status} onChange={(e)=>setStatus(e.target.value)}><option value="PLANNING">Tervezés</option><option value="ACTIVE">Aktív</option><option value="ON_HOLD">Szüneteltetve</option><option value="COMPLETED">Befejezett</option><option value="CANCELLED">Törölt</option></select></div>
-        <div><label className="mb-2 block text-sm font-medium">Prioritás</label><select className="w-full rounded-lg border bg-transparent p-3" value={priority} onChange={(e)=>setPriority(e.target.value)}><option value="LOW">Alacsony</option><option value="MEDIUM">Közepes</option><option value="HIGH">Magas</option><option value="URGENT">Sürgős</option></select></div>
+        <div><label className="mb-2 block text-sm font-medium">Státusz</label><select className="w-full rounded-xl border bg-white p-3" value={status} onChange={(e)=>setStatus(e.target.value)}><option value="PLANNING">Tervezés</option><option value="ACTIVE">Aktív</option><option value="ON_HOLD">Szüneteltetve</option><option value="COMPLETED">Befejezett</option><option value="CANCELLED">Törölt</option></select></div>
+        <div><label className="mb-2 block text-sm font-medium">Prioritás</label><select className="w-full rounded-xl border bg-white p-3" value={priority} onChange={(e)=>setPriority(e.target.value)}><option value="LOW">Alacsony</option><option value="MEDIUM">Közepes</option><option value="HIGH">Magas</option><option value="URGENT">Sürgős</option></select></div>
       </div>
       <div className="grid gap-4 md:grid-cols-2">
-        <div><label className="mb-2 block text-sm font-medium">Kezdési dátum</label><input type="date" className="w-full rounded-lg border bg-transparent p-3" value={startDate} onChange={(e)=>setStartDate(e.target.value)} /></div>
-        <div><label className="mb-2 block text-sm font-medium">Határidő</label><input type="date" className="w-full rounded-lg border bg-transparent p-3" value={dueDate} onChange={(e)=>setDueDate(e.target.value)} /></div>
+        <div><label className="mb-2 block text-sm font-medium">Kezdési dátum</label><input type="date" className="w-full rounded-xl border bg-white p-3" value={startDate} onChange={(e)=>setStartDate(e.target.value)} /></div>
+        <div><label className="mb-2 block text-sm font-medium">Határidő</label><input type="date" className="w-full rounded-xl border bg-white p-3" value={dueDate} onChange={(e)=>setDueDate(e.target.value)} /></div>
       </div>
-      {error ? <div className="rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-300">{error}</div> : null}
-      <button disabled={isSubmitting} className="rounded-lg bg-white px-4 py-2 font-medium text-black disabled:opacity-50">{isSubmitting ? "Mentés..." : "Projekt létrehozása"}</button>
+      {error ? <div className="rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-[#b33d50]">{error}</div> : null}
+      <button disabled={isSubmitting} className="pf-button-primary disabled:opacity-50">{isSubmitting ? "Mentés..." : "Projekt létrehozása"}</button>
     </form>
-  </div></div></main>;
+  </div></div></div>;
 }

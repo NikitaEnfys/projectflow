@@ -3,8 +3,34 @@ import { serverApi } from "@/lib/api/server";
 
 export default async function ClientsPage() {
   const clients = await serverApi<any[]>("/api/clients");
-  return <main>
-    <div className="mb-6"><h1 className="text-3xl font-bold">Ügyfelek</h1><p className="mt-2 text-sm text-gray-600">Ügyfélcégek, kapcsolattartók és kapcsolódó projektek.</p></div>
-    {clients.length === 0 ? <div className="rounded-xl border p-6"><p>Nincs számodra elérhető ügyfél.</p></div> : <div className="grid gap-4">{clients.map((client) => <Link key={client.id} href={`/clients/${client.id}`} className="block rounded-xl border p-5 shadow-sm transition hover:bg-gray-50"><div className="flex flex-wrap items-start justify-between gap-4"><div><h2 className="text-xl font-semibold">{client.name}</h2><p className="mt-1 text-sm text-gray-600">{client._count.projects} projekt</p></div><span className="rounded-full border px-3 py-1 text-xs">{client.contacts.length} kapcsolattartó</span></div>{client.contacts.length > 0 && <div className="mt-4 border-t pt-3"><p className="mb-2 text-xs font-medium uppercase tracking-wide text-gray-500">Kapcsolattartók</p>{client.contacts.slice(0,3).map((contact:any) => <p key={contact.id} className="text-sm text-gray-600">{contact.name} · {contact.email}</p>)}</div>}</Link>)}</div>}
-  </main>;
+
+  return <div className="pf-page">
+    <div className="pf-page-header">
+      <div>
+        <p className="pf-eyebrow">Kapcsolatok</p>
+        <h1 className="pf-title">Ügyfelek</h1>
+        <p className="pf-subtitle">Ügyfélcégek, kapcsolattartók és a hozzájuk tartozó projektek egy helyen.</p>
+      </div>
+      <Link href="/clients/new" className="pf-button-primary"><span className="text-lg leading-none">+</span> Új ügyfél</Link>
+    </div>
+
+    {clients.length === 0 ? <div className="pf-empty"><p className="font-semibold text-[#424b5e]">Még nincs elérhető ügyfél.</p><p className="mt-1 text-sm">Az új ügyfelek itt fognak megjelenni.</p></div> : <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
+      {clients.map((client) => <Link key={client.id} href={`/clients/${client.id}`} className="pf-card pf-card-hover block p-5 sm:p-6">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex min-w-0 items-center gap-3.5">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#eaf8f3] text-sm font-bold text-[#238764]">{client.name?.slice(0, 1)?.toUpperCase()}</span>
+            <div className="min-w-0">
+              <h2 className="truncate text-lg font-bold tracking-[-0.02em] text-[#283044]">{client.name}</h2>
+              <p className="mt-1 text-xs text-[#8d96a8]">{client._count.projects} projekt</p>
+            </div>
+          </div>
+          <span className="pf-chip">{client.contacts.length} kapcsolat</span>
+        </div>
+        <div className="mt-5 border-t border-[#edf0f5] pt-4">
+          <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.12em] text-[#a0a8b7]">Kapcsolattartók</p>
+          {client.contacts.length === 0 ? <p className="text-sm text-[#9199a9]">Még nincs kapcsolattartó.</p> : <div className="space-y-1.5">{client.contacts.slice(0, 3).map((contact: any) => <p key={contact.id} className="truncate text-sm text-[#667084]"><span className="font-semibold text-[#4a5366]">{contact.name}</span> · {contact.email}</p>)}</div>}
+        </div>
+      </Link>)}
+    </div>}
+  </div>;
 }
