@@ -4,96 +4,255 @@ import { apiFetch } from "@/lib/api/client";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
-type User = { id: string; name: string; email: string };
 type Contact = {
   id: string;
   name: string;
   email: string;
-  position?: string | null;
+  position: string | null;
+  userId: string | null;
 };
-type Client = { id: string; name: string; contacts: Contact[] };
-type Access = { canCreateProject: boolean };
+
+type Client = {
+  id: string;
+  name: string;
+  contacts: Contact[];
+};
+
+type Manager = {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+};
+
+type Organization = {
+  id: string;
+  name: string;
+  currentUserRole: string;
+  canInvite: boolean;
+  clients: Client[];
+  managers: Manager[];
+};
+
+type SetupOptions = {
+  currentUser: {
+    id: string;
+    name: string;
+    email: string;
+  };
+  organizations: Organization[];
+};
+
+const STATUS_OPTIONS = [
+  { value: "PLANNING", label: "Tervezés" },
+  { value: "ACTIVE", label: "Aktív" },
+  { value: "ON_HOLD", label: "Szüneteltetve" },
+  { value: "COMPLETED", label: "Befejezett" },
+];
+
+const PRIORITY_OPTIONS = [
+  { value: "LOW", label: "Alacsony" },
+  { value: "MEDIUM", label: "Közepes" },
+  { value: "HIGH", label: "Magas" },
+  { value: "URGENT", label: "Sürgős" },
+];
+
+const ROLE_LABELS: Record<string, string> = {
+  OWNER: "Tulajdonos",
+  ADMIN: "Adminisztrátor",
+  PROJECT_MANAGER: "Projektvezető",
+};
 
 export default function NewProjectPage() {
   const router = useRouter();
-  const [name, setName] = useState("");
+
+  const [options, setOptions] = useState<SetupOptions | null>(null);
+  const [organizationId, setOrganizationId] = useState("");
+
+  const [projectName, setProjectName] = useState("");
   const [description, setDescription] = useState("");
-  const [clientId, setClientId] = useState("");
+
+  const [clientChoice, setClientChoice] = useState("");
+  const [newClientName, setNewClientName] = useState("");
+
+  const [contactChoice, setContactChoice] = useState("none");
+  const [newContactName, setNewContactName] = useState("");
+  const [newContactEmail, setNewContactEmail] = useState("");
+  const [newContactPosition, setNewContactPosition] = useState("");
+
   const [ownerId, setOwnerId] = useState("");
+  const [sendInvitation, setSendInvitation] = useState(false);
+
   const [status, setStatus] = useState("PLANNING");
   const [priority, setPriority] = useState("MEDIUM");
   const [startDate, setStartDate] = useState("");
   const [dueDate, setDueDate] = useState("");
-  const [clients, setClients] = useState<Client[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
-  const [selectedContacts, setSelectedContacts] = useState<string[]>([]);
-  const [primaryContactId, setPrimaryContactId] = useState<string | null>(null);
-  const [allowed, setAllowed] = useState<boolean | null>(null);
-  const [isLoadingOptions, setIsLoadingOptions] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
-  const activeClient = useMemo(
-    () => clients.find((client) => client.id === clientId) ?? null,
-    [clients, clientId],
-  );
-
   useEffect(() => {
-    async function loadOptions() {
+    async function load() {
       try {
-        const accessRes = await apiFetch("/api/access");
-        const access: Access = await accessRes.json();
-        setAllowed(Boolean(access.canCreateProject));
-        if (!access.canCreateProject) return;
+        const response = await apiFetch("/api/projects/setup");
 
-        const [clientsRes, usersRes] = await Promise.all([
-          apiFetch("/api/clients"),
-          apiFetch("/api/users"),
-        ]);
-
-        if (!clientsRes.ok || !usersRes.ok) {
-          throw new Error("Nem sikerült betölteni a választási lehetőségeket.");
+        if (!response.ok) {
+          throw new Error("Nem sikerült betölteni a projektbeállításokat.");
         }
 
-        setClients(await clientsRes.json());
-        setUsers(await usersRes.json());
+        const data = (await response.json()) as SetupOptions;
+        setOptions(data);
+
+        const firstOrganization = data.organizations[0];
+
+        if (firstOrganization) {
+          setOrganizationId(firstOrganization.id);
+
+          const currentUserManager = firstOrganization.managers.find(
+            (manager) => manager.id === data.currentUser.id,
+          );
+
+          setOwnerId(
+            currentUserManager?.id ??
+              firstOrganization.managers[0]?.id ??
+              "",
+          );
+        }
       } catch (error) {
-        console.error(error);
-        setError("Nem sikerült betölteni az ügyfeleket és felhasználókat.");
+        setError(
+          error instanceof Error
+            ? error.message
+            : "Nem sikerült betölteni az adatokat.",
+        );
       } finally {
-        setIsLoadingOptions(false);
+        setLoading(false);
       }
     }
 
-    loadOptions();
+    load();
   }, []);
 
-  function chooseClient(value: string) {
-    setClientId(value);
-    setSelectedContacts([]);
-    setPrimaryContactId(null);
+  const organization = useMemo(
+    () =>
+      options?.organizations.find(
+        (item) => item.id === organizationId,
+      ) ?? null,
+    [options, organizationId],
+  );
+
+  const existingClient = useMemo(() => {
+    if (!organization || !clientChoice.startsWith("existing:")) {
+      return null;
+    }
+
+    const id = clientChoice.slice("existing:".length);
+
+    return organization.clients.find((client) => client.id === id) ?? null;
+  }, [organization, clientChoice]);
+
+  const availableContacts = existingClient?.contacts ?? [];
+
+  const selectedExistingContact = useMemo(() => {
+    if (!contactChoice.startsWith("existing:")) return null;
+
+    const id = contactChoice.slice("existing:".length);
+
+    return availableContacts.find((contact) => contact.id === id) ?? null;
+  }, [availableContacts, contactChoice]);
+
+  function changeOrganization(value: string) {
+    setOrganizationId(value);
+    setClientChoice("");
+    setNewClientName("");
+    setContactChoice("none");
+    setSendInvitation(false);
+
+    const nextOrganization = options?.organizations.find(
+      (item) => item.id === value,
+    );
+
+    const currentUserManager = nextOrganization?.managers.find(
+      (manager) => manager.id === options?.currentUser.id,
+    );
+
+    setOwnerId(
+      currentUserManager?.id ??
+        nextOrganization?.managers[0]?.id ??
+        "",
+    );
   }
 
-  function toggleContact(contactId: string) {
-    setSelectedContacts((current) => {
-      if (current.includes(contactId)) {
-        const next = current.filter((id) => id !== contactId);
-        if (primaryContactId === contactId) setPrimaryContactId(next[0] ?? null);
-        return next;
-      }
-
-      const next = [...current, contactId];
-      if (!primaryContactId) setPrimaryContactId(contactId);
-      return next;
-    });
+  function changeClient(value: string) {
+    setClientChoice(value);
+    setContactChoice("none");
+    setNewContactName("");
+    setNewContactEmail("");
+    setNewContactPosition("");
+    setSendInvitation(false);
   }
 
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  function changeContact(value: string) {
+    setContactChoice(value);
+    setSendInvitation(false);
+
+    if (value !== "new") {
+      setNewContactName("");
+      setNewContactEmail("");
+      setNewContactPosition("");
+    }
+  }
+
+  const contactForInvitation =
+    contactChoice === "new"
+      ? {
+          email: newContactEmail,
+          linked: false,
+        }
+      : selectedExistingContact
+        ? {
+            email: selectedExistingContact.email,
+            linked: Boolean(selectedExistingContact.userId),
+          }
+        : null;
+
+  async function submit(event: React.FormEvent) {
     event.preventDefault();
     setError("");
 
-    if (!name.trim() || !clientId || !ownerId) {
-      setError("A projekt neve, ügyfele és felelőse kötelező.");
+    if (!projectName.trim()) {
+      setError("Add meg a projekt nevét.");
+      return;
+    }
+
+    if (!organization) {
+      setError("Válassz szervezetet.");
+      return;
+    }
+
+    if (!clientChoice) {
+      setError("Válassz ügyfelet vagy hozz létre újat.");
+      return;
+    }
+
+    if (clientChoice === "new" && !newClientName.trim()) {
+      setError("Add meg az új ügyfél nevét.");
+      return;
+    }
+
+    if (
+      contactChoice === "new" &&
+      (!newContactName.trim() || !newContactEmail.trim())
+    ) {
+      setError(
+        "Új kapcsolattartónál add meg a nevet és az e-mail címet.",
+      );
+      return;
+    }
+
+    if (!ownerId) {
+      setError("Válassz projektvezetőt.");
       return;
     }
 
@@ -102,254 +261,515 @@ export default function NewProjectPage() {
       return;
     }
 
-    try {
-      setIsSubmitting(true);
+    const client =
+      clientChoice === "new"
+        ? {
+            mode: "new",
+            name: newClientName,
+          }
+        : {
+            mode: "existing",
+            id: clientChoice.slice("existing:".length),
+          };
 
-      const response = await apiFetch("/api/projects", {
+    const contact =
+      contactChoice === "none"
+        ? { mode: "none" }
+        : contactChoice === "new"
+          ? {
+              mode: "new",
+              name: newContactName,
+              email: newContactEmail,
+              position: newContactPosition,
+            }
+          : {
+              mode: "existing",
+              id: contactChoice.slice("existing:".length),
+            };
+
+    try {
+      setSubmitting(true);
+
+      const response = await apiFetch("/api/projects/setup", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({
-          name,
+          organizationId,
+          name: projectName,
           description,
-          clientId,
+          client,
+          contact,
           ownerId,
+          sendInvitation,
           status,
           priority,
           startDate,
           dueDate,
-          clientContactIds: selectedContacts,
-          primaryClientContactId: primaryContactId,
         }),
       });
 
       const result = await response.json();
-      if (!response.ok) throw new Error(result.error || result.details || "Ismeretlen hiba");
 
-      router.push(`/projects/${result.id}`);
+      if (!response.ok) {
+        throw new Error(
+          result.error || "Nem sikerült létrehozni a projektet.",
+        );
+      }
+
+      router.push(`/projects/${result.projectId}`);
       router.refresh();
     } catch (error) {
       setError(
-        error instanceof Error ? error.message : "Hiba történt a projekt létrehozásakor.",
+        error instanceof Error
+          ? error.message
+          : "Nem sikerült létrehozni a projektet.",
       );
     } finally {
-      setIsSubmitting(false);
+      setSubmitting(false);
     }
   }
 
-  if (isLoadingOptions) return <main><p>Betöltés...</p></main>;
-
-  if (allowed === false) {
+  if (loading) {
     return (
-      <main>
-        <div className="pf-card p-5 sm:p-6">
-          <h1 className="text-2xl font-bold">Nincs jogosultságod</h1>
-          <p className="mt-2 text-sm text-gray-600">
-            Új projektet csak tulajdonos, adminisztrátor vagy projektvezető hozhat létre.
+      <div className="pf-page">
+        <div className="pf-card mx-auto max-w-3xl p-6 text-sm text-[#778195]">
+          Projektbeállítások betöltése…
+        </div>
+      </div>
+    );
+  }
+
+  if (!options || options.organizations.length === 0) {
+    return (
+      <div className="pf-page">
+        <div className="pf-card mx-auto max-w-3xl p-6">
+          <h1 className="text-xl font-bold text-[#30384b]">
+            Nem hozhatsz létre projektet
+          </h1>
+          <p className="mt-2 text-sm text-[#778195]">
+            Ehhez tulajdonos, adminisztrátor vagy projektvezető
+            szerepkör szükséges.
           </p>
         </div>
-      </main>
+      </div>
     );
   }
 
   return (
     <div className="pf-page">
-      <div className="mx-auto max-w-3xl">
+      <div className="mx-auto max-w-4xl">
         <div className="pf-page-header">
           <div>
-            <p className="pf-eyebrow">Új munka</p>
+            <p className="pf-eyebrow">Gyors projektindítás</p>
             <h1 className="pf-title">Új projekt</h1>
             <p className="pf-subtitle">
-              Válaszd ki az ügyfélcéget, majd a projekt konkrét kapcsolattartóit.
+              A meglévő adatokat listából választod ki. Új adatot csak
+              akkor kell begépelni, ha még nem létezik.
             </p>
           </div>
         </div>
 
-        <div className="pf-card p-5 sm:p-7">
-          <form onSubmit={handleSubmit} className="space-y-5">
-            <div>
-              <label className="mb-2 block text-sm font-medium">Projekt neve</label>
+        <form onSubmit={submit} className="space-y-5">
+          {options.organizations.length > 1 && (
+            <section className="pf-card p-5 sm:p-6">
+              <label className="block text-sm font-semibold text-[#465065]">
+                Szervezet
+                <select
+                  className="mt-2 w-full rounded-xl border bg-white p-3"
+                  value={organizationId}
+                  onChange={(event) =>
+                    changeOrganization(event.target.value)
+                  }
+                >
+                  {options.organizations.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </section>
+          )}
+
+          <section className="pf-card p-5 sm:p-6">
+            <div className="mb-5 flex items-center gap-3">
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#eef0ff] text-sm font-bold text-[#5965df]">
+                1
+              </span>
+              <div>
+                <h2 className="font-bold text-[#30384b]">
+                  Projekt
+                </h2>
+                <p className="text-xs text-[#8993a5]">
+                  Egyetlen kötelező kézi mező.
+                </p>
+              </div>
+            </div>
+
+            <label className="block text-sm font-semibold text-[#465065]">
+              Projekt neve
               <input
-                className="w-full rounded-xl border bg-white p-3"
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                placeholder="Pl. Céges weboldal redesign"
+                className="mt-2 w-full rounded-xl border bg-white p-3"
+                value={projectName}
+                onChange={(event) =>
+                  setProjectName(event.target.value)
+                }
+                placeholder="Pl. Weboldal újratervezés"
+                autoFocus
               />
-            </div>
+            </label>
 
-            <div>
-              <label className="mb-2 block text-sm font-medium">Leírás</label>
+            <label className="mt-4 block text-sm font-semibold text-[#465065]">
+              Rövid leírás
               <textarea
-                className="w-full rounded-xl border bg-white p-3"
+                rows={3}
+                className="mt-2 w-full rounded-xl border bg-white p-3"
                 value={description}
-                onChange={(event) => setDescription(event.target.value)}
-                rows={4}
+                onChange={(event) =>
+                  setDescription(event.target.value)
+                }
+                placeholder="Opcionális"
               />
-            </div>
+            </label>
+          </section>
 
-            <div className="grid gap-4 md:grid-cols-2">
+          <section className="pf-card p-5 sm:p-6">
+            <div className="mb-5 flex items-center gap-3">
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#eef0ff] text-sm font-bold text-[#5965df]">
+                2
+              </span>
               <div>
-                <label className="mb-2 block text-sm font-medium">Ügyfélcég</label>
-                <select
-                  className="w-full rounded-xl border bg-white p-3"
-                  value={clientId}
-                  onChange={(event) => chooseClient(event.target.value)}
-                >
-                  <option value="">Válassz ügyfélcéget</option>
-                  {clients.map((client) => (
-                    <option key={client.id} value={client.id}>
-                      {client.name} · {client.contacts.length} kapcsolattartó
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="mb-2 block text-sm font-medium">Projektvezető</label>
-                <select
-                  className="w-full rounded-xl border bg-white p-3"
-                  value={ownerId}
-                  onChange={(event) => setOwnerId(event.target.value)}
-                >
-                  <option value="">Válassz felelőst</option>
-                  {users.map((user) => (
-                    <option key={user.id} value={user.id}>
-                      {user.name} ({user.email})
-                    </option>
-                  ))}
-                </select>
+                <h2 className="font-bold text-[#30384b]">
+                  Ügyfél
+                </h2>
+                <p className="text-xs text-[#8993a5]">
+                  Válassz meglévőt, vagy hozz létre újat itt helyben.
+                </p>
               </div>
             </div>
 
-            {activeClient && (
-              <div className="rounded-xl border border-[#e6e9f0] bg-[#fbfcff] p-4">
+            <select
+              className="w-full rounded-xl border bg-white p-3"
+              value={clientChoice}
+              onChange={(event) =>
+                changeClient(event.target.value)
+              }
+            >
+              <option value="">Válassz ügyfelet…</option>
+
+              {organization?.clients.map((client) => (
+                <option
+                  key={client.id}
+                  value={`existing:${client.id}`}
+                >
+                  {client.name}
+                  {client.contacts.length
+                    ? ` · ${client.contacts.length} kapcsolattartó`
+                    : " · nincs kapcsolattartó"}
+                </option>
+              ))}
+
+              <option value="new">＋ Új ügyfél létrehozása</option>
+            </select>
+
+            {clientChoice === "new" && (
+              <div className="mt-4 rounded-xl border border-[#dfe3ed] bg-[#fbfcff] p-4">
+                <label className="block text-sm font-semibold text-[#465065]">
+                  Új ügyfél neve
+                  <input
+                    className="mt-2 w-full rounded-xl border bg-white p-3"
+                    value={newClientName}
+                    onChange={(event) =>
+                      setNewClientName(event.target.value)
+                    }
+                    placeholder="Pl. Acme Kft."
+                  />
+                </label>
+              </div>
+            )}
+          </section>
+
+          {clientChoice && (
+            <section className="pf-card p-5 sm:p-6">
+              <div className="mb-5 flex items-center gap-3">
+                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#eef0ff] text-sm font-bold text-[#5965df]">
+                  3
+                </span>
                 <div>
-                  <p className="text-sm font-semibold text-[#424b5e]">
-                    Projekt kapcsolattartói
-                  </p>
-                  <p className="mt-1 text-xs text-[#8993a5]">
-                    A kiválasztott ügyfélcéghez tartozó személyek. Több személy is
-                    kijelölhető.
+                  <h2 className="font-bold text-[#30384b]">
+                    Kapcsolattartó
+                  </h2>
+                  <p className="text-xs text-[#8993a5]">
+                    Nem kötelező. Ha már létezik, csak válaszd ki.
                   </p>
                 </div>
+              </div>
 
-                {activeClient.contacts.length === 0 ? (
-                  <p className="mt-4 text-sm text-[#8b94a5]">
-                    Ennél az ügyfélcégnél még nincs kapcsolattartó. Előbb az Ügyfelek
-                    oldalon adj hozzá egy személyt, vagy a projektet most is
-                    létrehozhatod kapcsolattartó nélkül.
-                  </p>
-                ) : (
-                  <div className="mt-4 grid gap-2 md:grid-cols-2">
-                    {activeClient.contacts.map((contact) => {
-                      const checked = selectedContacts.includes(contact.id);
-                      return (
-                        <div
-                          key={contact.id}
-                          className={`rounded-xl border p-3 ${
-                            checked
-                              ? "border-[#bcc3ff] bg-[#f5f6ff]"
-                              : "border-[#e7eaf0] bg-white"
-                          }`}
-                        >
-                          <label className="flex cursor-pointer gap-2.5">
-                            <input
-                              type="checkbox"
-                              checked={checked}
-                              onChange={() => toggleContact(contact.id)}
-                              className="mt-1"
-                            />
-                            <span className="min-w-0">
-                              <span className="block text-sm font-semibold">
-                                {contact.name}
-                              </span>
-                              <span className="block truncate text-xs text-[#7c8597]">
-                                {contact.email}
-                              </span>
-                            </span>
-                          </label>
+              <select
+                className="w-full rounded-xl border bg-white p-3"
+                value={contactChoice}
+                onChange={(event) =>
+                  changeContact(event.target.value)
+                }
+              >
+                <option value="none">
+                  Nincs kijelölt kapcsolattartó
+                </option>
 
-                          {checked && (
-                            <label className="mt-2 flex items-center gap-2 text-xs text-[#687286]">
-                              <input
-                                type="radio"
-                                name="primary-contact"
-                                checked={primaryContactId === contact.id}
-                                onChange={() => setPrimaryContactId(contact.id)}
-                              />
-                              Elsődleges
-                            </label>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
+                {availableContacts.map((contact) => (
+                  <option
+                    key={contact.id}
+                    value={`existing:${contact.id}`}
+                  >
+                    {contact.name} · {contact.email}
+                    {contact.position
+                      ? ` · ${contact.position}`
+                      : ""}
+                  </option>
+                ))}
+
+                <option value="new">
+                  ＋ Új kapcsolattartó létrehozása
+                </option>
+              </select>
+
+              {contactChoice === "new" && (
+                <div className="mt-4 grid gap-3 rounded-xl border border-[#dfe3ed] bg-[#fbfcff] p-4 md:grid-cols-2">
+                  <label className="text-sm font-semibold text-[#465065]">
+                    Név
+                    <input
+                      className="mt-2 w-full rounded-xl border bg-white p-3"
+                      value={newContactName}
+                      onChange={(event) =>
+                        setNewContactName(event.target.value)
+                      }
+                    />
+                  </label>
+
+                  <label className="text-sm font-semibold text-[#465065]">
+                    E-mail
+                    <input
+                      type="email"
+                      className="mt-2 w-full rounded-xl border bg-white p-3"
+                      value={newContactEmail}
+                      onChange={(event) =>
+                        setNewContactEmail(event.target.value)
+                      }
+                    />
+                  </label>
+
+                  <label className="text-sm font-semibold text-[#465065] md:col-span-2">
+                    Pozíció
+                    <input
+                      className="mt-2 w-full rounded-xl border bg-white p-3"
+                      value={newContactPosition}
+                      onChange={(event) =>
+                        setNewContactPosition(event.target.value)
+                      }
+                      placeholder="Opcionális"
+                    />
+                  </label>
+                </div>
+              )}
+
+              {contactForInvitation &&
+                organization?.canInvite &&
+                !contactForInvitation.linked && (
+                  <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-xl border border-[#e3e6f5] bg-[#f7f8ff] p-4">
+                    <input
+                      type="checkbox"
+                      checked={sendInvitation}
+                      onChange={(event) =>
+                        setSendInvitation(event.target.checked)
+                      }
+                      className="mt-1"
+                    />
+
+                    <span>
+                      <span className="block text-sm font-semibold text-[#465065]">
+                        Meghívás küldése a ProjectFlow-ba
+                      </span>
+                      <span className="mt-1 block text-xs text-[#7d8798]">
+                        A projekt létrehozása után automatikusan
+                        ügyfél-hozzáférésű meghívót küldünk a(z){" "}
+                        {contactForInvitation.email || "megadott e-mail címre"}.
+                      </span>
+                    </span>
+                  </label>
+                )}
+            </section>
+          )}
+
+          <section className="pf-card p-5 sm:p-6">
+            <div className="mb-5 flex items-center gap-3">
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#eef0ff] text-sm font-bold text-[#5965df]">
+                4
+              </span>
+              <div>
+                <h2 className="font-bold text-[#30384b]">
+                  Felelős
+                </h2>
+                <p className="text-xs text-[#8993a5]">
+                  Alapból te vagy kijelölve, de listából módosítható.
+                </p>
+              </div>
+            </div>
+
+            <label className="block text-sm font-semibold text-[#465065]">
+              Projektvezető
+              <select
+                className="mt-2 w-full rounded-xl border bg-white p-3"
+                value={ownerId}
+                onChange={(event) =>
+                  setOwnerId(event.target.value)
+                }
+              >
+                {organization?.managers.map((manager) => (
+                  <option key={manager.id} value={manager.id}>
+                    {manager.name}
+                    {manager.id === options.currentUser.id
+                      ? " · Te"
+                      : ""}
+                    {" · "}
+                    {ROLE_LABELS[manager.role] ?? manager.role}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </section>
+
+          <section className="pf-card p-5 sm:p-6">
+            <button
+              type="button"
+              className="flex w-full items-center justify-between text-left"
+              onClick={() =>
+                setShowAdvanced((current) => !current)
+              }
+            >
+              <span>
+                <span className="block font-bold text-[#30384b]">
+                  További beállítások
+                </span>
+                <span className="mt-1 block text-xs text-[#8993a5]">
+                  Nem kötelező. Alapból Tervezés / Közepes.
+                </span>
+              </span>
+
+              <span className="text-[#778195]">
+                {showAdvanced ? "▲" : "▼"}
+              </span>
+            </button>
+
+            {showAdvanced && (
+              <div className="mt-5 grid gap-4 border-t border-[#edf0f5] pt-5 md:grid-cols-2">
+                <label className="text-sm font-semibold text-[#465065]">
+                  Státusz
+                  <select
+                    className="mt-2 w-full rounded-xl border bg-white p-3"
+                    value={status}
+                    onChange={(event) =>
+                      setStatus(event.target.value)
+                    }
+                  >
+                    {STATUS_OPTIONS.map((option) => (
+                      <option
+                        key={option.value}
+                        value={option.value}
+                      >
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="text-sm font-semibold text-[#465065]">
+                  Prioritás
+                  <select
+                    className="mt-2 w-full rounded-xl border bg-white p-3"
+                    value={priority}
+                    onChange={(event) =>
+                      setPriority(event.target.value)
+                    }
+                  >
+                    {PRIORITY_OPTIONS.map((option) => (
+                      <option
+                        key={option.value}
+                        value={option.value}
+                      >
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="text-sm font-semibold text-[#465065]">
+                  Kezdési dátum
+                  <input
+                    type="date"
+                    className="mt-2 w-full rounded-xl border bg-white p-3"
+                    value={startDate}
+                    onChange={(event) =>
+                      setStartDate(event.target.value)
+                    }
+                  />
+                </label>
+
+                <label className="text-sm font-semibold text-[#465065]">
+                  Határidő
+                  <input
+                    type="date"
+                    className="mt-2 w-full rounded-xl border bg-white p-3"
+                    value={dueDate}
+                    onChange={(event) =>
+                      setDueDate(event.target.value)
+                    }
+                  />
+                </label>
+              </div>
+            )}
+          </section>
+
+          {error && (
+            <div className="rounded-xl border border-[#f1cdd3] bg-[#fff2f4] p-4 text-sm text-[#b33d50]">
+              {error}
+            </div>
+          )}
+
+          <div className="sticky bottom-4 z-10 rounded-2xl border border-[#e3e6ed] bg-white/95 p-4 shadow-lg backdrop-blur">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div className="text-sm text-[#667084]">
+                <span className="font-semibold text-[#30384b]">
+                  {projectName.trim() || "Új projekt"}
+                </span>
+
+                {clientChoice && (
+                  <>
+                    {" · "}
+                    {clientChoice === "new"
+                      ? newClientName || "Új ügyfél"
+                      : existingClient?.name}
+                  </>
                 )}
               </div>
-            )}
 
-            <div className="grid gap-4 md:grid-cols-2">
-              <div>
-                <label className="mb-2 block text-sm font-medium">Státusz</label>
-                <select
-                  className="w-full rounded-xl border bg-white p-3"
-                  value={status}
-                  onChange={(event) => setStatus(event.target.value)}
-                >
-                  <option value="PLANNING">Tervezés</option>
-                  <option value="ACTIVE">Aktív</option>
-                  <option value="ON_HOLD">Szüneteltetve</option>
-                  <option value="COMPLETED">Befejezett</option>
-                  <option value="CANCELLED">Törölt</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="mb-2 block text-sm font-medium">Prioritás</label>
-                <select
-                  className="w-full rounded-xl border bg-white p-3"
-                  value={priority}
-                  onChange={(event) => setPriority(event.target.value)}
-                >
-                  <option value="LOW">Alacsony</option>
-                  <option value="MEDIUM">Közepes</option>
-                  <option value="HIGH">Magas</option>
-                  <option value="URGENT">Sürgős</option>
-                </select>
-              </div>
+              <button
+                disabled={
+                  submitting ||
+                  !projectName.trim() ||
+                  !clientChoice ||
+                  !ownerId
+                }
+                className="pf-button-primary disabled:opacity-50"
+              >
+                {submitting
+                  ? "Projekt létrehozása…"
+                  : "Projekt létrehozása"}
+              </button>
             </div>
-
-            <div className="grid gap-4 md:grid-cols-2">
-              <div>
-                <label className="mb-2 block text-sm font-medium">Kezdési dátum</label>
-                <input
-                  type="date"
-                  className="w-full rounded-xl border bg-white p-3"
-                  value={startDate}
-                  onChange={(event) => setStartDate(event.target.value)}
-                />
-              </div>
-              <div>
-                <label className="mb-2 block text-sm font-medium">Határidő</label>
-                <input
-                  type="date"
-                  className="w-full rounded-xl border bg-white p-3"
-                  value={dueDate}
-                  onChange={(event) => setDueDate(event.target.value)}
-                />
-              </div>
-            </div>
-
-            {error && (
-              <div className="rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-[#b33d50]">
-                {error}
-              </div>
-            )}
-
-            <button disabled={isSubmitting} className="pf-button-primary disabled:opacity-50">
-              {isSubmitting ? "Mentés..." : "Projekt létrehozása"}
-            </button>
-          </form>
-        </div>
+          </div>
+        </form>
       </div>
     </div>
   );

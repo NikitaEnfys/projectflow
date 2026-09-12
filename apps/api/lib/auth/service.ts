@@ -14,14 +14,33 @@ export class AuthService {
     return { token: createSessionToken(identity), user };
   }
 
-  async register(input: { name: string; email: string; password: string; next: string }) {
-    const apiOrigin = process.env.API_PUBLIC_URL ?? "http://localhost:3001";
-    const callback = `${apiOrigin}/api/auth/callback?next=${encodeURIComponent(input.next)}`;
-    const result = await this.provider.signUp({ ...input, emailRedirectTo: callback });
+  async register(input: {
+    name: string;
+    email: string;
+    password: string;
+    next: string;
+  }) {
+    const apiOrigin =
+      process.env.API_PUBLIC_URL ?? "http://localhost:3001";
+
+    const callback = `${apiOrigin}/api/auth/callback?next=${encodeURIComponent(
+      input.next,
+    )}`;
+
+    const result = await this.provider.signUp({
+      ...input,
+      emailRedirectTo: callback,
+    });
+
     if (!result.authenticated || !result.identity) {
-      return { authenticated: false as const, requiresEmailConfirmation: result.requiresEmailConfirmation };
+      return {
+        authenticated: false as const,
+        requiresEmailConfirmation: result.requiresEmailConfirmation,
+      };
     }
+
     const user = await this.users.resolveIdentity(result.identity);
+
     return {
       authenticated: true as const,
       requiresEmailConfirmation: false,
@@ -35,9 +54,29 @@ export class AuthService {
     const user = await this.users.resolveIdentity(identity);
     return { token: createSessionToken(identity), user };
   }
+
+  async invitedAccountExists(email: string) {
+    return this.provider.invitedAccountExists(email);
+  }
+
+  async prepareInvitedAccount(input: {
+    name: string;
+    email: string;
+    password: string;
+  }) {
+    const identity = await this.provider.prepareInvitedAccount(input);
+    const user = await this.users.resolveIdentity(identity);
+
+    return {
+      identity,
+      user,
+      token: createSessionToken(identity),
+    };
+  }
 }
 
 let service: AuthService | undefined;
+
 export function getAuthService() {
   service ??= new AuthService();
   return service;
