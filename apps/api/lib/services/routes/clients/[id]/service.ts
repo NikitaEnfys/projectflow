@@ -6,64 +6,178 @@ import {
   canViewClient,
 } from "@/lib/permissions";
 
-type Ctx = { params: Promise<{ id: string }> };
+type Ctx = {
+  params: Promise<{ id: string }>;
+};
 
-async function getManageableClient(userId: string, clientId: string) {
-  const client = await clientRepository.findUnique({
-    where: { id: clientId },
-    select: {
-      id: true,
-      name: true,
-      organizationId: true,
-      _count: { select: { projects: true } },
-    },
-  });
+const PUBLIC_USER_SELECT = {
+  id: true,
+  name: true,
+  email: true,
+} as const;
 
-  if (!client?.organizationId) return null;
+async function getManageableClient(
+  userId: string,
+  clientId: string,
+) {
+  const client =
+    await clientRepository.findUnique({
+      where: { id: clientId },
+      select: {
+        id: true,
+        name: true,
+        organizationId: true,
+        _count: {
+          select: {
+            projects: true,
+          },
+        },
+      },
+    });
 
-  if (!(await canManageClients(userId, client.organizationId))) {
+  if (!client?.organizationId) {
+    return null;
+  }
+
+  if (
+    !(await canManageClients(
+      userId,
+      client.organizationId,
+    ))
+  ) {
     return null;
   }
 
   return client;
 }
 
-export async function GET(_: Request, { params }: Ctx) {
+export async function GET(
+  _: Request,
+  { params }: Ctx,
+) {
   const { id } = await params;
-  const user = await requireCurrentUser();
+  const user =
+    await requireCurrentUser();
 
-  if (!(await canViewClient(user.id, id))) {
+  if (
+    !(await canViewClient(
+      user.id,
+      id,
+    ))
+  ) {
     return json(
-      { error: "Nincs hozzáférésed ehhez az ügyfélhez." },
+      {
+        error:
+          "Nincs hozzáférésed ehhez az ügyfélhez.",
+      },
       { status: 403 },
     );
   }
 
-  const client = await clientRepository.findUnique({
-    where: { id },
-    include: {
-      contacts: {
-        include: { user: true },
-        orderBy: { name: "asc" },
+  const baseClient =
+    await clientRepository.findUnique({
+      where: { id },
+      select: {
+        organizationId: true,
       },
-      projects: {
-        include: { owner: true },
-        orderBy: { createdAt: "desc" },
+    });
+
+  if (!baseClient) {
+    return json(
+      {
+        error:
+          "Ügyfél nem található.",
       },
-    },
-  });
+      { status: 404 },
+    );
+  }
+
+  const manager =
+    Boolean(baseClient.organizationId) &&
+    (await canManageClients(
+      user.id,
+      baseClient.organizationId!,
+    ));
+
+  const client =
+    await clientRepository.findUnique({
+      where: { id },
+      include: {
+        contacts: {
+          include: {
+            user: {
+              select:
+                PUBLIC_USER_SELECT,
+            },
+          },
+          orderBy: {
+            name: "asc",
+          },
+        },
+        projects: {
+          where: manager
+            ? undefined
+            : {
+                OR: [
+                  {
+                    members: {
+                      some: {
+                        userId:
+                          user.id,
+                      },
+                    },
+                  },
+                  {
+                    clientContacts: {
+                      some: {
+                        clientContact: {
+                          userId:
+                            user.id,
+                        },
+                      },
+                    },
+                  },
+                ],
+              },
+          include: {
+            owner: {
+              select:
+                PUBLIC_USER_SELECT,
+            },
+          },
+          orderBy: {
+            createdAt: "desc",
+          },
+        },
+      },
+    });
 
   if (!client) {
-    return json({ error: "Ügyfél nem található." }, { status: 404 });
+    return json(
+      {
+        error:
+          "Ügyfél nem található.",
+      },
+      { status: 404 },
+    );
   }
 
   return json(client);
 }
 
-export async function PATCH(request: Request, { params }: Ctx) {
+export async function PATCH(
+  request: Request,
+  { params }: Ctx,
+) {
   const { id } = await params;
-  const user = await requireCurrentUser();
-  const client = await getManageableClient(user.id, id);
+  const user =
+    await requireCurrentUser();
+
+  const client =
+    await getManageableClient(
+      user.id,
+      id,
+    );
 
   if (!client) {
     return json(
@@ -75,25 +189,47 @@ export async function PATCH(request: Request, { params }: Ctx) {
     );
   }
 
-  const body = await request.json();
-  const name = typeof body.name === "string" ? body.name.trim() : "";
+  const body =
+    await request.json();
+
+  const name =
+    typeof body.name === "string"
+      ? body.name.trim()
+      : "";
 
   if (!name) {
-    return json({ error: "Az ügyfél neve kötelező." }, { status: 400 });
+    return json(
+      {
+        error:
+          "Az ügyfél neve kötelező.",
+      },
+      { status: 400 },
+    );
   }
 
-  const siblings = await clientRepository.findMany({
-    where: {
-      organizationId: client.organizationId,
-      id: { not: id },
-    },
-    select: { id: true, name: true },
-  });
+  const siblings =
+    await clientRepository.findMany({
+      where: {
+        organizationId:
+          client.organizationId,
+        id: { not: id },
+      },
+      select: {
+        id: true,
+        name: true,
+      },
+    });
 
   const duplicate = siblings.find(
     (item) =>
-      item.name.trim().toLocaleLowerCase("hu-HU") ===
-      name.toLocaleLowerCase("hu-HU"),
+      item.name
+        .trim()
+        .toLocaleLowerCase(
+          "hu-HU",
+        ) ===
+      name.toLocaleLowerCase(
+        "hu-HU",
+      ),
   );
 
   if (duplicate) {
@@ -113,10 +249,19 @@ export async function PATCH(request: Request, { params }: Ctx) {
   );
 }
 
-export async function DELETE(_: Request, { params }: Ctx) {
+export async function DELETE(
+  _: Request,
+  { params }: Ctx,
+) {
   const { id } = await params;
-  const user = await requireCurrentUser();
-  const client = await getManageableClient(user.id, id);
+  const user =
+    await requireCurrentUser();
+
+  const client =
+    await getManageableClient(
+      user.id,
+      id,
+    );
 
   if (!client) {
     return json(
@@ -128,7 +273,9 @@ export async function DELETE(_: Request, { params }: Ctx) {
     );
   }
 
-  if (client._count.projects > 0) {
+  if (
+    client._count.projects > 0
+  ) {
     return json(
       {
         error:
@@ -139,7 +286,11 @@ export async function DELETE(_: Request, { params }: Ctx) {
     );
   }
 
-  await clientRepository.delete({ where: { id } });
+  await clientRepository.delete({
+    where: { id },
+  });
 
-  return json({ success: true });
+  return json({
+    success: true,
+  });
 }

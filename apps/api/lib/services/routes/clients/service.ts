@@ -1,52 +1,121 @@
 import { json } from "@/lib/http/response";
-import { clientRepository } from "@/lib/repositories";
+import {
+  clientRepository,
+  projectRepository,
+} from "@/lib/repositories";
 import {
   clientVisibilityWhere,
   getCurrentAccessContext,
+  projectVisibilityWhere,
 } from "@/lib/auth/access";
 import { canCreateClient } from "@/lib/permissions";
 
-export async function GET() {
-  const { user, oversightOrganizationIds } = await getCurrentAccessContext();
+const PUBLIC_USER_SELECT = {
+  id: true,
+  name: true,
+  email: true,
+} as const;
 
-  return json(
-    await clientRepository.findMany({
-      where: clientVisibilityWhere(user.id, oversightOrganizationIds),
-      include: {
-        contacts: {
-          include: { user: true },
-          orderBy: { name: "asc" },
+export async function GET() {
+  const {
+    user,
+    oversightOrganizationIds,
+    linkedProjectIds,
+  } = await getCurrentAccessContext();
+
+  const clients = await clientRepository.findMany({
+    where: clientVisibilityWhere(
+      user.id,
+      oversightOrganizationIds,
+    ),
+    include: {
+      contacts: {
+        include: {
+          user: {
+            select: PUBLIC_USER_SELECT,
+          },
         },
-        _count: { select: { projects: true } },
+        orderBy: { name: "asc" },
       },
-      orderBy: [{ name: "asc" }, { createdAt: "desc" }],
-    }),
+    },
+    orderBy: [
+      { name: "asc" },
+      { createdAt: "desc" },
+    ],
+  });
+
+  const visibleProjectWhere = projectVisibilityWhere(
+    user.id,
+    oversightOrganizationIds,
+    linkedProjectIds,
   );
+
+  const withCounts = await Promise.all(
+    clients.map(async (client) => ({
+      ...client,
+      _count: {
+        projects: await projectRepository.count({
+          where: {
+            clientId: client.id,
+            ...visibleProjectWhere,
+          },
+        }),
+      },
+    })),
+  );
+
+  return json(withCounts);
 }
 
 export async function POST(req: Request) {
   try {
-    const { user, organizationIds } = await getCurrentAccessContext();
+    const {
+      user,
+      organizationIds,
+    } = await getCurrentAccessContext();
+
     const body = await req.json();
-    const name = typeof body.name === "string" ? body.name.trim() : "";
+
+    const name =
+      typeof body.name === "string"
+        ? body.name.trim()
+        : "";
 
     if (!name) {
-      return json({ error: "Az ügyfél neve kötelező." }, { status: 400 });
+      return json(
+        {
+          error:
+            "Az ügyfél neve kötelező.",
+        },
+        { status: 400 },
+      );
     }
 
     const requestedOrganizationId =
-      typeof body.organizationId === "string" ? body.organizationId : null;
+      typeof body.organizationId ===
+      "string"
+        ? body.organizationId
+        : null;
 
     const candidates =
       requestedOrganizationId &&
-      organizationIds.includes(requestedOrganizationId)
+      organizationIds.includes(
+        requestedOrganizationId,
+      )
         ? [requestedOrganizationId]
         : organizationIds;
 
-    let organizationId: string | null = null;
+    let organizationId:
+      | string
+      | null = null;
 
     for (const candidate of candidates) {
-      if (await canCreateClient(user.id, candidate)) {
+      if (
+        await canCreateClient(
+          user.id,
+          candidate,
+        )
+      ) {
         organizationId = candidate;
         break;
       }
@@ -62,39 +131,64 @@ export async function POST(req: Request) {
       );
     }
 
-    const existingClients = await clientRepository.findMany({
-      where: { organizationId },
-      select: { id: true, name: true },
-    });
+    const existingClients =
+      await clientRepository.findMany({
+        where: { organizationId },
+        select: {
+          id: true,
+          name: true,
+        },
+      });
 
-    const duplicate = existingClients.find(
-      (client) =>
-        client.name.trim().toLocaleLowerCase("hu-HU") ===
-        name.toLocaleLowerCase("hu-HU"),
-    );
+    const duplicate =
+      existingClients.find(
+        (client) =>
+          client.name
+            .trim()
+            .toLocaleLowerCase(
+              "hu-HU",
+            ) ===
+          name.toLocaleLowerCase(
+            "hu-HU",
+          ),
+      );
 
     if (duplicate) {
       return json(
         {
           error: `Ebben a szervezetben már létezik „${duplicate.name}” nevű ügyfél.`,
-          existingClientId: duplicate.id,
+          existingClientId:
+            duplicate.id,
         },
         { status: 409 },
       );
     }
 
-    const client = await clientRepository.create({
-      data: { name, organizationId },
-    });
+    const client =
+      await clientRepository.create({
+        data: {
+          name,
+          organizationId,
+        },
+      });
 
-    return json(client, { status: 201 });
+    return json(client, {
+      status: 201,
+    });
   } catch (error) {
-    console.error("CLIENT_CREATE_ERROR:", error);
+    console.error(
+      "CLIENT_CREATE_ERROR:",
+      error,
+    );
 
     return json(
       {
-        error: "Nem sikerült létrehozni az ügyfelet.",
-        details: error instanceof Error ? error.message : "Ismeretlen hiba",
+        error:
+          "Nem sikerült létrehozni az ügyfelet.",
+        details:
+          error instanceof Error
+            ? error.message
+            : "Ismeretlen hiba",
       },
       { status: 500 },
     );
