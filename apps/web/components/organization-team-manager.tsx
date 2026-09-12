@@ -49,7 +49,7 @@ const LABELS: Record<string, string> = {
   PROJECT_MANAGER: "Projektvezető",
   MEMBER: "Munkatárs",
   CONTRACTOR: "Alvállalkozó",
-  CLIENT: "Ügyfél",
+  CLIENT: "Ügyfélfelhasználó",
 };
 
 export function OrganizationTeamManager({
@@ -61,7 +61,6 @@ export function OrganizationTeamManager({
   initialInvitations,
 }: Props) {
   const router = useRouter();
-
   const [members, setMembers] = useState(initialMembers);
   const [invitations, setInvitations] = useState(initialInvitations);
 
@@ -73,16 +72,15 @@ export function OrganizationTeamManager({
   const [inviteRole, setInviteRole] = useState<Role>("MEMBER");
   const [inviteClientId, setInviteClientId] = useState(clients[0]?.id ?? "");
 
-  const [clientSelections, setClientSelections] = useState<Record<string, string>>(
-    Object.fromEntries(initialMembers.map((member) => [member.userId, member.clientId ?? ""])),
-  );
-
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
   const selectableRoles = useMemo(
-    () => (currentUserRole === "OWNER" ? ROLES : ROLES.filter((role) => role !== "ADMIN")),
+    () =>
+      currentUserRole === "OWNER"
+        ? ROLES
+        : ROLES.filter((role) => role !== "ADMIN"),
     [currentUserRole],
   );
 
@@ -97,7 +95,7 @@ export function OrganizationTeamManager({
     setMessage("");
 
     if (memberRole === "CLIENT" && !memberClientId) {
-      setError("Ügyfél szerepkörnél válassz ügyfélcéget.");
+      setError("Ügyfélfelhasználónál válassz ügyfélcéget.");
       setBusy(null);
       return;
     }
@@ -119,13 +117,7 @@ export function OrganizationTeamManager({
     }
 
     const created = (await response.json()) as Member;
-
     setMembers((items) => [...items, created]);
-    setClientSelections((items) => ({
-      ...items,
-      [created.userId]: created.clientId ?? "",
-    }));
-
     setMemberEmail("");
     setMemberRole("MEMBER");
     setBusy(null);
@@ -139,7 +131,7 @@ export function OrganizationTeamManager({
     setMessage("");
 
     if (inviteRole === "CLIENT" && !inviteClientId) {
-      setError("Ügyfél szerepkörnél válassz ügyfélcéget.");
+      setError("Ügyfélfelhasználónál válassz ügyfélcéget.");
       setBusy(null);
       return;
     }
@@ -170,14 +162,12 @@ export function OrganizationTeamManager({
     setInviteRole("MEMBER");
     setBusy(null);
 
-    if (created.emailSent) {
-      setMessage("Meghívó létrehozva, az email automatikusan elküldve.");
-    } else {
-      setMessage(
-        created.emailWarning ??
-          "Meghívó létrehozva. Az email nem ment ki, a linket kézzel is megoszthatod.",
-      );
-    }
+    setMessage(
+      created.emailSent
+        ? "Meghívó létrehozva, az email automatikusan elküldve."
+        : created.emailWarning ??
+            "Meghívó létrehozva. Az email nem ment ki, a link kézzel is megosztható.",
+    );
 
     router.refresh();
   }
@@ -205,7 +195,9 @@ export function OrganizationTeamManager({
       return;
     }
 
-    setInvitations((items) => items.filter((invitation) => invitation.id !== invitationId));
+    setInvitations((items) =>
+      items.filter((invitation) => invitation.id !== invitationId),
+    );
     setBusy(null);
     setMessage("Meghívó visszavonva.");
     router.refresh();
@@ -230,62 +222,12 @@ export function OrganizationTeamManager({
 
     const updated = (await response.json()) as Member;
     setMembers((items) =>
-      items.map((item) => (item.id === updated.id ? { ...item, role: updated.role } : item)),
-    );
-
-    if (member.role === "CLIENT" && updated.role !== "CLIENT") {
-      setClientSelections((items) => ({ ...items, [member.userId]: "" }));
-      setMembers((items) =>
-        items.map((item) =>
-          item.id === updated.id ? { ...item, clientId: null, clientName: null } : item,
-        ),
-      );
-    }
-
-    setBusy(null);
-    setMessage("Szervezeti szerepkör módosítva.");
-    router.refresh();
-  }
-
-  async function assignClient(member: Member) {
-    const clientId = clientSelections[member.userId] || "";
-
-    setBusy(`client-${member.id}`);
-    setError("");
-    setMessage("");
-
-    const response = await apiFetch(`/api/organizations/${organizationId}/client-contacts`, {
-      method: clientId ? "PUT" : "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId: member.userId, clientId }),
-    });
-
-    if (!response.ok) {
-      setError(await getError(response));
-      setBusy(null);
-      return;
-    }
-
-    const selected = clients.find((client) => client.id === clientId) ?? null;
-
-    setMembers((items) =>
       items.map((item) =>
-        item.id === member.id
-          ? {
-              ...item,
-              clientId: selected?.id ?? null,
-              clientName: selected?.name ?? null,
-            }
-          : item,
+        item.id === updated.id ? { ...item, role: updated.role } : item,
       ),
     );
-
     setBusy(null);
-    setMessage(
-      clientId
-        ? "Ügyfélfelhasználó ügyfélcéghez rendelve."
-        : "Ügyfélkapcsolat eltávolítva.",
-    );
+    setMessage("Szervezeti szerepkör módosítva.");
     router.refresh();
   }
 
@@ -336,8 +278,8 @@ export function OrganizationTeamManager({
       <section className="pf-card p-5 sm:p-6">
         <h2 className="text-2xl font-semibold">Meglévő felhasználó hozzáadása</h2>
         <p className="mt-1 text-sm text-gray-500">
-          Ha a felhasználó már regisztrált a ProjectFlow-ba, az e-mail címe alapján közvetlenül
-          hozzáadhatod a szervezethez.
+          Ez szervezeti hozzáférést ad. Az ügyfélcégek személyes kapcsolattartóit az
+          Ügyfelek oldalon kezeld.
         </p>
 
         <div className="mt-5 grid gap-3 md:grid-cols-[minmax(0,1fr)_220px_auto]">
@@ -348,7 +290,6 @@ export function OrganizationTeamManager({
             placeholder="nev@ceg.hu"
             className="rounded-lg border bg-transparent px-3 py-2"
           />
-
           <select
             value={memberRole}
             onChange={(event) => setMemberRole(event.target.value as Role)}
@@ -360,7 +301,6 @@ export function OrganizationTeamManager({
               </option>
             ))}
           </select>
-
           <button
             type="button"
             disabled={
@@ -377,7 +317,9 @@ export function OrganizationTeamManager({
 
         {memberRole === "CLIENT" && (
           <div className="mt-3">
-            <label className="mb-2 block text-sm font-medium">Ügyfélcég</label>
+            <label className="mb-2 block text-sm font-medium">
+              Melyik ügyfélcéghez kapjon hozzáférést?
+            </label>
             {clients.length ? (
               <select
                 value={memberClientId}
@@ -400,8 +342,8 @@ export function OrganizationTeamManager({
       <section className="pf-card p-5 sm:p-6">
         <h2 className="text-2xl font-semibold">Új tag meghívása</h2>
         <p className="mt-1 text-sm text-gray-500">
-          A meghívó létrehozásakor a rendszer automatikusan emailt küld. Ha az email küldése
-          sikertelen, a meghívólink kézzel továbbra is megosztható.
+          A meghívás szervezeti hozzáférést ad. Ügyfélfelhasználónál azt is megadod,
+          melyik ügyfélcég adatait érheti el.
         </p>
 
         <div className="mt-5 grid gap-3 md:grid-cols-[minmax(0,1fr)_220px_auto]">
@@ -412,7 +354,6 @@ export function OrganizationTeamManager({
             placeholder="nev@ceg.hu"
             className="rounded-lg border bg-transparent px-3 py-2"
           />
-
           <select
             value={inviteRole}
             onChange={(event) => setInviteRole(event.target.value as Role)}
@@ -424,7 +365,6 @@ export function OrganizationTeamManager({
               </option>
             ))}
           </select>
-
           <button
             type="button"
             disabled={
@@ -441,7 +381,9 @@ export function OrganizationTeamManager({
 
         {inviteRole === "CLIENT" && (
           <div className="mt-3">
-            <label className="mb-2 block text-sm font-medium">Ügyfélcég</label>
+            <label className="mb-2 block text-sm font-medium">
+              Hozzáférés ügyfélcéghez
+            </label>
             {clients.length ? (
               <select
                 value={inviteClientId}
@@ -463,6 +405,10 @@ export function OrganizationTeamManager({
 
       <section className="pf-card p-5 sm:p-6">
         <h2 className="text-2xl font-semibold">Szervezeti tagok</h2>
+        <p className="mt-1 text-sm text-gray-500">
+          Ez a lista a ProjectFlow-felhasználókat mutatja, nem az ügyfélcégek
+          kapcsolattartó-listáját.
+        </p>
 
         <div className="mt-5 space-y-3">
           {members.map((member) => (
@@ -479,15 +425,12 @@ export function OrganizationTeamManager({
                     )}
                   </p>
                   <p className="text-sm text-gray-500">{member.user.email}</p>
-                  {member.role === "CLIENT" && (
-                    <p className="mt-1 text-xs text-gray-500">
-                      Ügyfélcég: {member.clientName ?? "nincs hozzárendelve"}
-                    </p>
-                  )}
                 </div>
 
                 {member.role === "OWNER" ? (
-                  <span className="rounded-full border px-3 py-1 text-xs">Tulajdonos</span>
+                  <span className="rounded-full border px-3 py-1 text-xs">
+                    Tulajdonos
+                  </span>
                 ) : (
                   <div className="flex flex-wrap gap-2">
                     <select
@@ -496,7 +439,9 @@ export function OrganizationTeamManager({
                         busy === member.id ||
                         (currentUserRole === "ADMIN" && member.role === "ADMIN")
                       }
-                      onChange={(event) => changeRole(member, event.target.value as Role)}
+                      onChange={(event) =>
+                        changeRole(member, event.target.value as Role)
+                      }
                       className="rounded-xl border bg-white px-3 py-2 text-sm"
                     >
                       {selectableRoles.map((role) => (
@@ -520,38 +465,6 @@ export function OrganizationTeamManager({
                   </div>
                 )}
               </div>
-
-              {member.role === "CLIENT" && (
-                <div className="mt-4 grid gap-2 md:grid-cols-[minmax(0,1fr)_auto]">
-                  <select
-                    value={clientSelections[member.userId] ?? ""}
-                    onChange={(event) =>
-                      setClientSelections((items) => ({
-                        ...items,
-                        [member.userId]: event.target.value,
-                      }))
-                    }
-                    className="rounded-xl border bg-white px-3 py-2 text-sm"
-                  >
-                    <option className="bg-white" value="">
-                      Nincs ügyfélcéghez rendelve
-                    </option>
-                    {clients.map((client) => (
-                      <option className="bg-white" key={client.id} value={client.id}>
-                        {client.name}
-                      </option>
-                    ))}
-                  </select>
-
-                  <button
-                    onClick={() => assignClient(member)}
-                    disabled={busy === `client-${member.id}`}
-                    className="rounded-lg border px-3 py-2 text-sm disabled:opacity-50"
-                  >
-                    {busy === `client-${member.id}` ? "Mentés…" : "Ügyfélkapcsolat mentése"}
-                  </button>
-                </div>
-              )}
             </div>
           ))}
         </div>
@@ -576,7 +489,7 @@ export function OrganizationTeamManager({
                   </p>
                   {invitation.role === "CLIENT" && (
                     <p className="text-xs text-gray-500">
-                      Ügyfélcég: {invitation.clientName ?? "nincs megadva"}
+                      Hozzáférés: {invitation.clientName ?? "nincs ügyfélcég"}
                     </p>
                   )}
                   <p className="text-xs text-gray-500">

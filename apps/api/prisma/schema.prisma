@@ -114,21 +114,21 @@ model OrganizationInvitation {
 }
 
 model User {
-  id        String   @id @default(uuid())
-  name      String
-  email      String   @unique
-  authUserId String?  @unique
+  id         String  @id @default(uuid())
+  name       String
+  email      String  @unique
+  authUserId String? @unique
   createdAt  DateTime @default(now())
 
-  projects           Project[]            @relation("ProjectOwner")
+  projects           Project[]                @relation("ProjectOwner")
   memberships        OrganizationMember[]
   projectMemberships ProjectMember[]
   clientContacts     ClientContact[]
-  assignedTasks      Task[]                @relation("TaskAssignee")
-  createdTasks       Task[]                @relation("TaskCreator")
+  assignedTasks      Task[]                   @relation("TaskAssignee")
+  createdTasks       Task[]                   @relation("TaskCreator")
   sentInvitations    OrganizationInvitation[] @relation("OrganizationInvitationInviter")
-  taskComments        TaskComment[]
-  activities          ActivityLog[]
+  taskComments       TaskComment[]
+  activities         ActivityLog[]
 }
 
 model Client {
@@ -143,6 +143,7 @@ model Client {
   invitations   OrganizationInvitation[] @relation("OrganizationInvitationClient")
 
   @@index([organizationId])
+  @@index([name])
 }
 
 model ClientContact {
@@ -155,8 +156,9 @@ model ClientContact {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  user   User?  @relation(fields: [userId], references: [id], onDelete: SetNull)
+  client       Client                 @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  user         User?                  @relation(fields: [userId], references: [id], onDelete: SetNull)
+  projectLinks ProjectClientContact[]
 
   @@unique([clientId, email])
   @@index([clientId])
@@ -178,7 +180,7 @@ model Project {
   client   Client @relation(fields: [clientId], references: [id])
 
   ownerId String
-  owner   User   @relation("ProjectOwner", fields: [ownerId], references: [id])
+  owner   User @relation("ProjectOwner", fields: [ownerId], references: [id])
 
   organizationId String?
   organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
@@ -186,14 +188,31 @@ model Project {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  tasks      Task[]
-  members    ProjectMember[]
-  milestones Milestone[]
-  activities ActivityLog[]
+  tasks          Task[]
+  members        ProjectMember[]
+  milestones     Milestone[]
+  activities     ActivityLog[]
+  clientContacts ProjectClientContact[]
 
   @@index([organizationId])
   @@index([clientId])
   @@index([ownerId])
+}
+
+model ProjectClientContact {
+  id              String   @id @default(uuid())
+  projectId       String
+  clientContactId String
+  isPrimary       Boolean  @default(false)
+  createdAt       DateTime @default(now())
+
+  project       Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  clientContact ClientContact @relation(fields: [clientContactId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, clientContactId])
+  @@index([projectId])
+  @@index([clientContactId])
+  @@index([isPrimary])
 }
 
 model ProjectMember {
@@ -263,7 +282,6 @@ model Task {
   @@index([status])
   @@index([priority])
 }
-
 
 model TaskComment {
   id         String            @id @default(uuid())

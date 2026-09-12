@@ -1,1 +1,1 @@
-export { DELETE } from "@/lib/services/routes/projects/[id]/tasks/[taskId]/comments/[commentId]/service";
+export { PATCH, DELETE } from "@/lib/services/routes/projects/[id]/tasks/[taskId]/comments/[commentId]/service";

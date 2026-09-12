@@ -1,1 +1,1 @@
-export { GET } from "@/lib/services/routes/clients/[id]/service";
+export { GET, PATCH, DELETE } from "@/lib/services/routes/clients/[id]/service";
