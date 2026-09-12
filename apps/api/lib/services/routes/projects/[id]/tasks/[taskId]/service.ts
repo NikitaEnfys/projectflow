@@ -10,10 +10,7 @@ import {
   taskRepository,
 } from "@/lib/repositories";
 import { requireCurrentUser } from "@/lib/auth/current-user";
-import {
-  canManageProject,
-  canUpdateAssignedTask,
-} from "@/lib/permissions";
+import { resolveTaskAccess } from "@/lib/tasks/access";
 import { refreshProjectProgress } from "@/lib/tasks/progress";
 import { logActivity } from "@/lib/activity/log";
 
@@ -26,7 +23,9 @@ function parseDate(value: unknown) {
   if (typeof value !== "string") return undefined;
 
   const date = new Date(`${value}T00:00:00`);
-  return Number.isNaN(date.getTime()) ? undefined : date;
+  return Number.isNaN(date.getTime())
+    ? undefined
+    : date;
 }
 
 const taskInclude = {
@@ -51,9 +50,25 @@ const taskInclude = {
   },
 };
 
-export async function PATCH(req: Request, { params }: Context) {
+export async function PATCH(
+  req: Request,
+  { params }: Context,
+) {
   const { id: projectId, taskId } = await params;
   const user = await requireCurrentUser();
+
+  const access = await resolveTaskAccess(
+    user.id,
+    projectId,
+    taskId,
+  );
+
+  if (!access || !access.permissions.canView) {
+    return json(
+      { error: "A feladat nem található." },
+      { status: 404 },
+    );
+  }
 
   const existing = await taskRepository.findFirst({
     where: { id: taskId, projectId },
@@ -66,20 +81,33 @@ export async function PATCH(req: Request, { params }: Context) {
     );
   }
 
-  const manager = await canManageProject(user.id, projectId);
-  const assignedEditor =
-    !manager && (await canUpdateAssignedTask(user.id, taskId));
-
-  if (!manager && !assignedEditor) {
-    return json(
-      { error: "Nincs jogosultságod a feladat módosításához." },
-      { status: 403 },
-    );
-  }
-
   const body = await req.json();
 
-  if (assignedEditor) {
+  if (!access.permissions.canEdit) {
+    if (!access.permissions.canChangeStatus) {
+      return json(
+        {
+          error:
+            "Nincs jogosultságod a feladat módosításához.",
+        },
+        { status: 403 },
+      );
+    }
+
+    const keys = Object.keys(body);
+    if (
+      keys.length !== 1 ||
+      keys[0] !== "status"
+    ) {
+      return json(
+        {
+          error:
+            "Ezen a feladaton csak az állapotot módosíthatod.",
+        },
+        { status: 403 },
+      );
+    }
+
     if (!Object.values(TaskStatus).includes(body.status)) {
       return json(
         { error: "Érvénytelen státusz." },
@@ -104,7 +132,7 @@ export async function PATCH(req: Request, { params }: Context) {
       return json(
         {
           error:
-            "Jóváhagyásköteles feladat csak a jóváhagyási folyamat végén kerülhet Kész állapotba.",
+            "Jóváhagyásköteles feladat csak jóváhagyás után kerülhet Kész állapotba.",
         },
         { status: 409 },
       );
@@ -131,7 +159,8 @@ export async function PATCH(req: Request, { params }: Context) {
               from: existing.status,
               to: updated.status,
             },
-            clientVisible: updated.clientVisible,
+            clientVisible:
+              updated.clientVisible,
           })
         : Promise.resolve(null),
     ]);
@@ -152,7 +181,9 @@ export async function PATCH(req: Request, { params }: Context) {
 
   if ("title" in body) {
     const title =
-      typeof body.title === "string" ? body.title.trim() : "";
+      typeof body.title === "string"
+        ? body.title.trim()
+        : "";
 
     if (!title) {
       return json(
@@ -207,7 +238,11 @@ export async function PATCH(req: Request, { params }: Context) {
   }
 
   if ("priority" in body) {
-    if (!Object.values(TaskPriority).includes(body.priority)) {
+    if (
+      !Object.values(TaskPriority).includes(
+        body.priority,
+      )
+    ) {
       return json(
         { error: "Érvénytelen prioritás." },
         { status: 400 },
@@ -238,16 +273,20 @@ export async function PATCH(req: Request, { params }: Context) {
     if (!body.assigneeId) {
       data.assigneeId = null;
     } else {
-      const member = await projectMemberRepository.findUnique({
-        where: {
-          projectId_userId: {
-            projectId,
-            userId: body.assigneeId,
+      const member =
+        await projectMemberRepository.findUnique({
+          where: {
+            projectId_userId: {
+              projectId,
+              userId: body.assigneeId,
+            },
           },
-        },
-      });
+        });
 
-      if (!member || member.role === ProjectRole.CLIENT) {
+      if (
+        !member ||
+        member.role === ProjectRole.CLIENT
+      ) {
         return json(
           {
             error:
@@ -265,13 +304,14 @@ export async function PATCH(req: Request, { params }: Context) {
     if (!body.milestoneId) {
       data.milestoneId = null;
     } else {
-      const milestone = await milestoneRepository.findFirst({
-        where: {
-          id: body.milestoneId,
-          projectId,
-        },
-        select: { id: true },
-      });
+      const milestone =
+        await milestoneRepository.findFirst({
+          where: {
+            id: body.milestoneId,
+            projectId,
+          },
+          select: { id: true },
+        });
 
       if (!milestone) {
         return json(
@@ -293,57 +333,55 @@ export async function PATCH(req: Request, { params }: Context) {
     include: taskInclude,
   });
 
-  const changes: Record<string, unknown> = {};
-
-  for (const key of [
-    "title",
-    "status",
-    "priority",
-    "assigneeId",
-    "milestoneId",
-    "clientVisible",
-  ] as const) {
-    if (existing[key] !== updated[key]) {
-      changes[key] = {
-        from: existing[key],
-        to: updated[key],
-      };
-    }
-  }
-
   await Promise.all([
     refreshProjectProgress(projectId),
-    Object.keys(changes).length
-      ? logActivity({
-          projectId,
-          taskId,
-          userId: user.id,
-          action:
-            existing.status !== updated.status
-              ? "TASK_STATUS_CHANGED"
-              : "TASK_UPDATED",
-          entityType: "Task",
-          entityId: taskId,
-          message:
-            existing.status !== updated.status
-              ? `A(z) „${updated.title}” feladat állapota ${existing.status} → ${updated.status} értékre változott.`
-              : `Módosította a(z) „${updated.title}” feladatot.`,
-          metadata: changes,
-          clientVisible: updated.clientVisible,
-        })
-      : Promise.resolve(null),
+    logActivity({
+      projectId,
+      taskId,
+      userId: user.id,
+      action:
+        existing.status !== updated.status
+          ? "TASK_STATUS_CHANGED"
+          : "TASK_UPDATED",
+      entityType: "Task",
+      entityId: taskId,
+      message:
+        existing.status !== updated.status
+          ? `A(z) „${updated.title}” feladat állapota ${existing.status} → ${updated.status} értékre változott.`
+          : `Módosította a(z) „${updated.title}” feladatot.`,
+      clientVisible: updated.clientVisible,
+    }),
   ]);
 
   return json(updated);
 }
 
-export async function DELETE(_req: Request, { params }: Context) {
+export async function DELETE(
+  _req: Request,
+  { params }: Context,
+) {
   const { id: projectId, taskId } = await params;
   const user = await requireCurrentUser();
 
-  if (!(await canManageProject(user.id, projectId))) {
+  const access = await resolveTaskAccess(
+    user.id,
+    projectId,
+    taskId,
+  );
+
+  if (!access || !access.permissions.canView) {
     return json(
-      { error: "Nincs jogosultságod a feladat törléséhez." },
+      { error: "A feladat nem található." },
+      { status: 404 },
+    );
+  }
+
+  if (!access.permissions.canDelete) {
+    return json(
+      {
+        error:
+          "Nincs jogosultságod a feladat törléséhez.",
+      },
       { status: 403 },
     );
   }
@@ -353,7 +391,6 @@ export async function DELETE(_req: Request, { params }: Context) {
     select: {
       id: true,
       title: true,
-      clientVisible: true,
     },
   });
 

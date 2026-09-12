@@ -13,6 +13,10 @@ import {
   isClientProjectViewer,
   requireProjectAccess,
 } from "@/lib/permissions";
+import {
+  buildTaskPermissions,
+  getProjectTaskAccessContext,
+} from "@/lib/tasks/access";
 
 export async function GET(
   _: Request,
@@ -30,12 +34,17 @@ export async function GET(
     );
   }
 
-  const [canManageTeam, canManage, clientViewer] =
-    await Promise.all([
-      canManageProjectMembers(currentUser.id, id),
-      canManageProject(currentUser.id, id),
-      isClientProjectViewer(currentUser.id, id),
-    ]);
+  const [
+    canManageTeam,
+    canManage,
+    clientViewer,
+    taskAccessContext,
+  ] = await Promise.all([
+    canManageProjectMembers(currentUser.id, id),
+    canManageProject(currentUser.id, id),
+    isClientProjectViewer(currentUser.id, id),
+    getProjectTaskAccessContext(currentUser.id, id),
+  ]);
 
   const project = await projectRepository.findUnique({
     where: { id },
@@ -113,7 +122,7 @@ export async function GET(
     },
   });
 
-  if (!project) {
+  if (!project || !taskAccessContext) {
     return json(
       { error: "Projekt nem található." },
       { status: 404 },
@@ -219,6 +228,7 @@ export async function GET(
       name: string;
       email: string;
       source: string;
+      clientApprover: boolean;
     }
   >();
 
@@ -231,6 +241,8 @@ export async function GET(
         member.role === ProjectRole.CLIENT
           ? "Ügyfél"
           : "Projektcsapat",
+      clientApprover:
+        member.role === ProjectRole.CLIENT,
     });
   }
 
@@ -239,11 +251,11 @@ export async function GET(
     name: project.owner.name,
     email: project.owner.email,
     source: "Projektvezető",
+    clientApprover: false,
   });
 
   for (const link of project.clientContacts) {
     const contactUser = link.clientContact.user;
-
     if (!contactUser) continue;
 
     approvalCandidateMap.set(contactUser.id, {
@@ -251,6 +263,7 @@ export async function GET(
       name: contactUser.name,
       email: contactUser.email,
       source: "Ügyfél-kapcsolattartó",
+      clientApprover: true,
     });
   }
 
@@ -260,8 +273,33 @@ export async function GET(
     a.name.localeCompare(b.name, "hu"),
   );
 
+  const projectForUser = {
+    ...project,
+    tasks: project.tasks
+      .map((task) => {
+        const myApproval =
+          task.approvals.find(
+            (approval) =>
+              approval.approverId === currentUser.id,
+          ) ?? null;
+
+        const permissions = buildTaskPermissions(
+          taskAccessContext,
+          task,
+          myApproval,
+        );
+
+        return {
+          ...task,
+          myApproval,
+          permissions,
+        };
+      })
+      .filter((task) => task.permissions.canView),
+  };
+
   return json({
-    project,
+    project: projectForUser,
     currentUserId: currentUser.id,
     canManage,
     canManageTeam,

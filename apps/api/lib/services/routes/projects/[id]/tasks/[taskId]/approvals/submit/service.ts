@@ -6,13 +6,10 @@ import {
 } from "@/lib/repositories";
 import { requireCurrentUser } from "@/lib/auth/current-user";
 import {
-  canManageProject,
-  canUpdateAssignedTask,
-} from "@/lib/permissions";
-import {
   TaskApprovalDecision,
   TaskStatus,
 } from "@/lib/domain/enums";
+import { resolveTaskAccess } from "@/lib/tasks/access";
 import { refreshProjectProgress } from "@/lib/tasks/progress";
 import { logActivity } from "@/lib/activity/log";
 
@@ -20,50 +17,57 @@ type Context = {
   params: Promise<{ id: string; taskId: string }>;
 };
 
-export async function POST(_: Request, { params }: Context) {
+export async function POST(
+  _: Request,
+  { params }: Context,
+) {
   const { id: projectId, taskId } = await params;
   const user = await requireCurrentUser();
 
-  const [manager, assignedEditor, task] = await Promise.all([
-    canManageProject(user.id, projectId),
-    canUpdateAssignedTask(user.id, taskId),
-    taskRepository.findFirst({
-      where: { id: taskId, projectId },
-      select: {
-        id: true,
-        title: true,
-        status: true,
-        requiresApproval: true,
-        clientVisible: true,
-      },
-    }),
-  ]);
+  const access = await resolveTaskAccess(
+    user.id,
+    projectId,
+    taskId,
+  );
 
-  if (!task) {
-    return json({ error: "A feladat nem található." }, { status: 404 });
+  if (!access || !access.permissions.canView) {
+    return json(
+      { error: "A feladat nem található." },
+      { status: 404 },
+    );
   }
 
-  if (!manager && !assignedEditor) {
+  if (
+    !access.permissions.canSubmitForApproval
+  ) {
     return json(
-      { error: "Nincs jogosultságod jóváhagyásra küldeni ezt a feladatot." },
+      {
+        error:
+          "Ezt a feladatot jelenleg nem küldheted jóváhagyásra.",
+      },
       { status: 403 },
     );
   }
 
-  if (!task.requiresApproval) {
-    return json(
-      { error: "Ehhez a feladathoz nincs jóváhagyás beállítva." },
-      { status: 400 },
-    );
-  }
-
-  const approvalCount = await taskApprovalRepository.count({
-    where: { taskId },
+  const task = await taskRepository.findUnique({
+    where: { id: taskId },
+    select: {
+      title: true,
+      clientVisible: true,
+    },
   });
+
+  const approvalCount =
+    await taskApprovalRepository.count({
+      where: { taskId },
+    });
 
   if (!approvalCount) {
     return json(
-      { error: "A feladathoz nincs jóváhagyó beállítva." },
+      {
+        error:
+          "A feladathoz nincs jóváhagyó beállítva.",
+      },
       { status: 400 },
     );
   }
@@ -72,7 +76,8 @@ export async function POST(_: Request, { params }: Context) {
     await tx.taskApproval.updateMany({
       where: { taskId },
       data: {
-        decision: TaskApprovalDecision.PENDING,
+        decision:
+          TaskApprovalDecision.PENDING,
         comment: null,
         decidedAt: null,
       },
@@ -81,7 +86,8 @@ export async function POST(_: Request, { params }: Context) {
     await tx.task.update({
       where: { id: taskId },
       data: {
-        status: TaskStatus.AWAITING_APPROVAL,
+        status:
+          TaskStatus.AWAITING_APPROVAL,
       },
     });
   });
@@ -95,8 +101,9 @@ export async function POST(_: Request, { params }: Context) {
       action: "TASK_APPROVAL_REQUESTED",
       entityType: "Task",
       entityId: taskId,
-      message: `Jóváhagyásra küldte a(z) „${task.title}” feladatot.`,
-      clientVisible: task.clientVisible,
+      message: `Jóváhagyásra küldte a(z) „${task?.title ?? "feladat"}” feladatot.`,
+      clientVisible:
+        task?.clientVisible ?? false,
     }),
   ]);
 

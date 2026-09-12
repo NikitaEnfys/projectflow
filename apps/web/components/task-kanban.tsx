@@ -16,6 +16,19 @@ type MemberRef = UserRef & {
 
 type ApprovalCandidate = UserRef & {
   source: string;
+  clientApprover?: boolean;
+};
+
+type TaskPermissions = {
+  canView: boolean;
+  canEdit: boolean;
+  canDelete: boolean;
+  canChangeStatus: boolean;
+  canComment: boolean;
+  canModerateComments: boolean;
+  canConfigureApproval: boolean;
+  canSubmitForApproval: boolean;
+  canDecideApproval: boolean;
 };
 
 type MilestoneRef = {
@@ -50,6 +63,8 @@ type Task = {
   dueDate: string | null;
   clientVisible: boolean;
   requiresApproval: boolean;
+  permissions: TaskPermissions;
+  myApproval: Approval | null;
   assigneeId: string | null;
   creatorId: string;
   milestoneId: string | null;
@@ -303,11 +318,7 @@ export function TaskKanban({
     if (clientViewer) return;
     if (task.status === status) return;
 
-    const movable =
-      canManage ||
-      task.assigneeId === currentUserId;
-
-    if (!movable) return;
+    if (!task.permissions.canChangeStatus) return;
 
     setBusy(true);
     setError("");
@@ -792,12 +803,7 @@ export function TaskKanban({
               {byStatus[status]?.map(
                 (task: Task) => {
                   const movable =
-                    !clientViewer &&
-                    (canManage ||
-                      task.assigneeId ===
-                        currentUserId) &&
-                    task.status !==
-                      "AWAITING_APPROVAL";
+                    task.permissions.canChangeStatus;
 
                   return (
                     <article
@@ -859,11 +865,15 @@ export function TaskKanban({
                           Kommentek:{" "}
                           {task.comments.length}
                         </span>
-                        {task.requiresApproval && (
+                        {task.permissions.canDecideApproval ? (
+                          <span className="font-semibold text-[#b26a00]">
+                            Jóváhagyás rád vár
+                          </span>
+                        ) : task.requiresApproval ? (
                           <span className="font-medium text-[#5965df]">
                             Jóváhagyás szükséges
                           </span>
-                        )}
+                        ) : null}
                       </div>
 
                       {movable && (
@@ -930,7 +940,7 @@ export function TaskKanban({
             </button>
           </div>
 
-          {canManage && !clientViewer ? (
+          {selected.permissions.canEdit ? (
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
               <input
                 className="rounded-xl border bg-white p-3 xl:col-span-2"
@@ -1106,15 +1116,17 @@ export function TaskKanban({
                   Mentés
                 </button>
 
-                <button
-                  disabled={busy}
-                  onClick={() =>
-                    removeTask(selected)
-                  }
-                  className="rounded-lg border px-4 py-2"
-                >
-                  Törlés
-                </button>
+                {selected.permissions.canDelete && (
+                  <button
+                    disabled={busy}
+                    onClick={() =>
+                      removeTask(selected)
+                    }
+                    className="rounded-lg border px-4 py-2"
+                  >
+                    Törlés
+                  </button>
+                )}
               </div>
             </div>
           ) : (
@@ -1141,7 +1153,7 @@ export function TaskKanban({
             </div>
           )}
 
-          {canManage && !clientViewer && (
+          {selected.permissions.canConfigureApproval && (
             <div className="mt-6 border-t border-[#edf0f5] pt-5">
               <h4 className="font-semibold">
                 Jóváhagyási beállítások
@@ -1276,11 +1288,7 @@ export function TaskKanban({
                   Jóváhagyási beállítások mentése
                 </button>
 
-                {selected.requiresApproval &&
-                  selected.status !==
-                    "AWAITING_APPROVAL" &&
-                  selected.status !==
-                    "DONE" && (
+                {selected.permissions.canSubmitForApproval && (
                     <button
                       type="button"
                       disabled={busy}
@@ -1295,6 +1303,63 @@ export function TaskKanban({
               </div>
             </div>
           )}
+
+          {selected.permissions.canDecideApproval &&
+            selected.myApproval && (
+              <div className="mt-6 rounded-xl border border-[#d9defb] bg-[#f7f8ff] p-5">
+                <p className="pf-eyebrow">
+                  Te vagy a jóváhagyó
+                </p>
+                <h4 className="mt-1 text-lg font-bold text-[#30384b]">
+                  Döntés szükséges
+                </h4>
+                <p className="mt-2 text-sm leading-6 text-[#667084]">
+                  A csapat ezt a feladatot jóváhagyásra küldte neked.
+                </p>
+
+                <textarea
+                  rows={2}
+                  className="mt-4 w-full rounded-xl border bg-white p-3 text-sm"
+                  value={rejectionComment}
+                  onChange={(event) =>
+                    setRejectionComment(
+                      event.target.value,
+                    )
+                  }
+                  placeholder="Elutasítás indoklása (elutasításkor kötelező)"
+                />
+
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() =>
+                      decideApproval(
+                        selected.myApproval!,
+                        "APPROVED",
+                      )
+                    }
+                    className="rounded-lg bg-[#187555] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                  >
+                    Jóváhagyom
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() =>
+                      decideApproval(
+                        selected.myApproval!,
+                        "REJECTED",
+                      )
+                    }
+                    className="rounded-lg border border-[#efc9cf] bg-[#fff7f8] px-4 py-2 text-sm font-semibold text-[#b33d50] disabled:opacity-50"
+                  >
+                    Visszaküldöm javításra
+                  </button>
+                </div>
+              </div>
+            )}
 
           {selected.requiresApproval && (
             <div className="mt-6 border-t border-[#edf0f5] pt-5">
@@ -1345,66 +1410,7 @@ export function TaskKanban({
                         </p>
                       )}
 
-                      {approval.approverId ===
-                        currentUserId &&
-                        selected.status ===
-                          "AWAITING_APPROVAL" &&
-                        approval.decision ===
-                          "PENDING" && (
-                          <div className="mt-4 space-y-3 border-t border-[#edf0f5] pt-4">
-                            <textarea
-                              rows={2}
-                              className="w-full rounded-xl border bg-white p-3 text-sm"
-                              value={
-                                rejectionComment
-                              }
-                              onChange={(
-                                event,
-                              ) =>
-                                setRejectionComment(
-                                  event
-                                    .target
-                                    .value,
-                                )
-                              }
-                              placeholder="Elutasítás indoklása (elutasításkor kötelező)"
-                            />
 
-                            <div className="flex gap-2">
-                              <button
-                                type="button"
-                                disabled={
-                                  busy
-                                }
-                                onClick={() =>
-                                  decideApproval(
-                                    approval,
-                                    "APPROVED",
-                                  )
-                                }
-                                className="rounded-lg bg-[#187555] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
-                              >
-                                Jóváhagyás
-                              </button>
-
-                              <button
-                                type="button"
-                                disabled={
-                                  busy
-                                }
-                                onClick={() =>
-                                  decideApproval(
-                                    approval,
-                                    "REJECTED",
-                                  )
-                                }
-                                className="rounded-lg border border-[#efc9cf] bg-[#fff7f8] px-4 py-2 text-sm font-semibold text-[#b33d50] disabled:opacity-50"
-                              >
-                                Elutasítás
-                              </button>
-                            </div>
-                          </div>
-                        )}
                     </div>
                   ),
                 )}
@@ -1412,21 +1418,13 @@ export function TaskKanban({
             </div>
           )}
 
-          {!clientViewer &&
-            !canManage &&
-            selected.assigneeId ===
-              currentUserId &&
-            selected.requiresApproval &&
-            selected.status !==
-              "AWAITING_APPROVAL" &&
-            selected.status !== "DONE" && (
+          {!selected.permissions.canConfigureApproval &&
+            selected.permissions.canSubmitForApproval && (
               <div className="mt-6 border-t border-[#edf0f5] pt-5">
                 <button
                   type="button"
                   disabled={busy}
-                  onClick={
-                    submitForApproval
-                  }
+                  onClick={submitForApproval}
                   className="pf-button-primary disabled:opacity-50"
                 >
                   Jóváhagyásra küldés
@@ -1449,7 +1447,7 @@ export function TaskKanban({
                 selected.comments.map(
                   (item) => {
                     const canEditComment =
-                      canManage ||
+                      selected.permissions.canModerateComments ||
                       item.authorId ===
                         currentUserId;
 
@@ -1568,6 +1566,7 @@ export function TaskKanban({
               )}
             </div>
 
+            {selected.permissions.canComment && (
             <form
               onSubmit={addComment}
               className="mt-4 space-y-3"
@@ -1622,6 +1621,7 @@ export function TaskKanban({
                 </button>
               </div>
             </form>
+            )}
           </div>
         </div>
       )}

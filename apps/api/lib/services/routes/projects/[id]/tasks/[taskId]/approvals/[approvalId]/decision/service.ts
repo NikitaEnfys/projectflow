@@ -9,6 +9,7 @@ import {
   TaskApprovalDecision,
   TaskStatus,
 } from "@/lib/domain/enums";
+import { resolveTaskAccess } from "@/lib/tasks/access";
 import { refreshProjectProgress } from "@/lib/tasks/progress";
 import { logActivity } from "@/lib/activity/log";
 
@@ -20,116 +21,158 @@ type Context = {
   }>;
 };
 
-export async function POST(request: Request, { params }: Context) {
-  const { id: projectId, taskId, approvalId } = await params;
+export async function POST(
+  request: Request,
+  { params }: Context,
+) {
+  const {
+    id: projectId,
+    taskId,
+    approvalId,
+  } = await params;
   const user = await requireCurrentUser();
 
-  const approval = await taskApprovalRepository.findFirst({
-    where: {
-      id: approvalId,
-      taskId,
-      approverId: user.id,
-      task: { projectId },
-    },
-    include: {
-      task: {
-        select: {
-          id: true,
-          title: true,
-          status: true,
-          clientVisible: true,
-        },
-      },
-    },
-  });
+  const access = await resolveTaskAccess(
+    user.id,
+    projectId,
+    taskId,
+  );
 
-  if (!approval) {
+  if (
+    !access ||
+    !access.permissions.canView ||
+    !access.permissions.canDecideApproval ||
+    access.myApproval?.id !== approvalId
+  ) {
     return json(
-      { error: "Nincs ilyen jóváhagyási feladatod." },
-      { status: 404 },
+      {
+        error:
+          "Ehhez a jóváhagyáshoz nincs döntési jogosultságod.",
+      },
+      { status: 403 },
     );
   }
 
-  if (approval.task.status !== TaskStatus.AWAITING_APPROVAL) {
+  const approval =
+    await taskApprovalRepository.findUnique({
+      where: { id: approvalId },
+      include: {
+        task: {
+          select: {
+            id: true,
+            title: true,
+            status: true,
+            clientVisible: true,
+          },
+        },
+      },
+    });
+
+  if (!approval) {
     return json(
-      { error: "Ez a feladat jelenleg nem vár jóváhagyásra." },
-      { status: 409 },
+      { error: "A jóváhagyás nem található." },
+      { status: 404 },
     );
   }
 
   const body = await request.json();
 
   const decision =
-    body.decision === TaskApprovalDecision.APPROVED ||
-    body.decision === TaskApprovalDecision.REJECTED
+    body.decision ===
+      TaskApprovalDecision.APPROVED ||
+    body.decision ===
+      TaskApprovalDecision.REJECTED
       ? body.decision
       : null;
 
   if (!decision) {
     return json(
-      { error: "Érvénytelen jóváhagyási döntés." },
+      {
+        error:
+          "Érvénytelen jóváhagyási döntés.",
+      },
       { status: 400 },
     );
   }
 
   const comment =
-    typeof body.comment === "string" && body.comment.trim()
+    typeof body.comment === "string" &&
+    body.comment.trim()
       ? body.comment.trim()
       : null;
 
   if (
-    decision === TaskApprovalDecision.REJECTED &&
+    decision ===
+      TaskApprovalDecision.REJECTED &&
     !comment
   ) {
     return json(
-      { error: "Elutasításkor indoklás szükséges." },
+      {
+        error:
+          "Elutasításkor indoklás szükséges.",
+      },
       { status: 400 },
     );
   }
 
-  const result = await runInTransaction(async (tx) => {
-    await tx.taskApproval.update({
-      where: { id: approvalId },
-      data: {
-        decision,
-        comment,
-        decidedAt: new Date(),
-      },
-    });
-
-    if (decision === TaskApprovalDecision.REJECTED) {
-      await tx.task.update({
-        where: { id: taskId },
+  const result = await runInTransaction(
+    async (tx) => {
+      await tx.taskApproval.update({
+        where: { id: approvalId },
         data: {
-          status: TaskStatus.IN_PROGRESS,
+          decision,
+          comment,
+          decidedAt: new Date(),
         },
       });
 
-      return { taskStatus: TaskStatus.IN_PROGRESS };
-    }
+      if (
+        decision ===
+        TaskApprovalDecision.REJECTED
+      ) {
+        await tx.task.update({
+          where: { id: taskId },
+          data: {
+            status: TaskStatus.IN_PROGRESS,
+          },
+        });
 
-    const remaining = await tx.taskApproval.count({
-      where: {
-        taskId,
-        decision: {
-          not: TaskApprovalDecision.APPROVED,
-        },
-      },
-    });
+        return {
+          taskStatus:
+            TaskStatus.IN_PROGRESS,
+        };
+      }
 
-    if (remaining === 0) {
-      await tx.task.update({
-        where: { id: taskId },
-        data: {
-          status: TaskStatus.DONE,
-        },
-      });
+      const remaining =
+        await tx.taskApproval.count({
+          where: {
+            taskId,
+            decision: {
+              not:
+                TaskApprovalDecision.APPROVED,
+            },
+          },
+        });
 
-      return { taskStatus: TaskStatus.DONE };
-    }
+      if (remaining === 0) {
+        await tx.task.update({
+          where: { id: taskId },
+          data: {
+            status: TaskStatus.DONE,
+          },
+        });
 
-    return { taskStatus: TaskStatus.AWAITING_APPROVAL };
-  });
+        return {
+          taskStatus: TaskStatus.DONE,
+        };
+      }
+
+      return {
+        taskStatus:
+          TaskStatus.AWAITING_APPROVAL,
+      };
+    },
+  );
 
   await Promise.all([
     refreshProjectProgress(projectId),
@@ -138,41 +181,48 @@ export async function POST(request: Request, { params }: Context) {
       taskId,
       userId: user.id,
       action:
-        decision === TaskApprovalDecision.APPROVED
+        decision ===
+        TaskApprovalDecision.APPROVED
           ? "TASK_APPROVED"
           : "TASK_REJECTED",
       entityType: "TaskApproval",
       entityId: approvalId,
       message:
-        decision === TaskApprovalDecision.APPROVED
+        decision ===
+        TaskApprovalDecision.APPROVED
           ? `Jóváhagyta a(z) „${approval.task.title}” feladatot.`
           : `Elutasította a(z) „${approval.task.title}” feladatot: ${comment}`,
       metadata: {
         decision,
         comment,
-        resultingStatus: result.taskStatus,
+        resultingStatus:
+          result.taskStatus,
       },
-      clientVisible: approval.task.clientVisible,
+      clientVisible:
+        approval.task.clientVisible,
     }),
   ]);
 
-  const updatedTask = await taskRepository.findUnique({
-    where: { id: taskId },
-    include: {
-      approvals: {
-        include: {
-          approver: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
+  const updatedTask =
+    await taskRepository.findUnique({
+      where: { id: taskId },
+      include: {
+        approvals: {
+          include: {
+            approver: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+              },
             },
           },
+          orderBy: {
+            createdAt: "asc",
+          },
         },
-        orderBy: { createdAt: "asc" },
       },
-    },
-  });
+    });
 
   return json(updatedTask);
 }

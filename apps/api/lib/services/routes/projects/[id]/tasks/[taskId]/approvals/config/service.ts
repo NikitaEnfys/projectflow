@@ -7,74 +7,90 @@ import {
   runInTransaction,
 } from "@/lib/repositories";
 import { requireCurrentUser } from "@/lib/auth/current-user";
-import { canManageProject } from "@/lib/permissions";
-import { TaskStatus } from "@/lib/domain/enums";
+import { resolveTaskAccess } from "@/lib/tasks/access";
 
 type Context = {
   params: Promise<{ id: string; taskId: string }>;
 };
 
-export async function PUT(request: Request, { params }: Context) {
+export async function PUT(
+  request: Request,
+  { params }: Context,
+) {
   const { id: projectId, taskId } = await params;
   const user = await requireCurrentUser();
 
-  if (!(await canManageProject(user.id, projectId))) {
+  const access = await resolveTaskAccess(
+    user.id,
+    projectId,
+    taskId,
+  );
+
+  if (!access) {
     return json(
-      { error: "Nincs jogosultságod a jóváhagyási beállítások módosításához." },
+      { error: "A feladat nem található." },
+      { status: 404 },
+    );
+  }
+
+  if (!access.permissions.canConfigureApproval) {
+    return json(
+      {
+        error:
+          "Nincs jogosultságod a jóváhagyási beállítások módosításához.",
+      },
       { status: 403 },
     );
   }
 
-  const task = await taskRepository.findFirst({
-    where: { id: taskId, projectId },
-    select: {
-      id: true,
-      status: true,
-    },
-  });
-
-  if (!task) {
-    return json({ error: "A feladat nem található." }, { status: 404 });
-  }
-
-  if (task.status === TaskStatus.AWAITING_APPROVAL) {
-    return json(
-      {
-        error:
-          "Jóváhagyásra váró feladatnál előbb fejezd be vagy szakítsd meg a jóváhagyási kört.",
-      },
-      { status: 409 },
-    );
-  }
-
   const body = await request.json();
-  const requiresApproval = Boolean(body.requiresApproval);
+  const requiresApproval = Boolean(
+    body.requiresApproval,
+  );
 
-  const approverIds = Array.isArray(body.approverIds)
+  const approverIds = Array.isArray(
+    body.approverIds,
+  )
     ? [
         ...new Set(
           body.approverIds.filter(
-            (value: unknown): value is string =>
-              typeof value === "string" && Boolean(value),
+            (
+              value: unknown,
+            ): value is string =>
+              typeof value === "string" &&
+              Boolean(value),
           ),
         ),
       ]
     : [];
 
-  if (requiresApproval && approverIds.length === 0) {
+  if (
+    requiresApproval &&
+    approverIds.length === 0
+  ) {
     return json(
-      { error: "Jóváhagyásköteles feladathoz válassz legalább egy jóváhagyót." },
+      {
+        error:
+          "Jóváhagyásköteles feladathoz válassz legalább egy jóváhagyót.",
+      },
       { status: 400 },
     );
   }
 
-  const [projectMembers, projectContacts] = await Promise.all([
+  const [
+    projectMembers,
+    projectContacts,
+    task,
+  ] = await Promise.all([
     projectMemberRepository.findMany({
       where: {
         projectId,
         userId: { in: approverIds },
       },
-      select: { userId: true },
+      select: {
+        userId: true,
+        role: true,
+      },
     }),
     projectClientContactRepository.findMany({
       where: {
@@ -85,29 +101,67 @@ export async function PUT(request: Request, { params }: Context) {
       },
       select: {
         clientContact: {
-          select: { userId: true },
+          select: {
+            userId: true,
+          },
         },
+      },
+    }),
+    taskRepository.findUnique({
+      where: { id: taskId },
+      select: {
+        clientVisible: true,
       },
     }),
   ]);
 
-  const allowed = new Set<string>([
-    ...projectMembers.map((member) => member.userId),
-    ...projectContacts
-      .map((link) => link.clientContact.userId)
-      .filter((value): value is string => Boolean(value)),
-  ]);
+  const internalApprovers = new Set(
+    projectMembers
+      .filter(
+        (member) => member.role !== "CLIENT",
+      )
+      .map((member) => member.userId),
+  );
 
-  const invalidApprover = approverIds.find((id) => !allowed.has(id));
+  const clientApprovers = new Set(
+    projectContacts
+      .map(
+        (link) => link.clientContact.userId,
+      )
+      .filter(
+        (value): value is string =>
+          Boolean(value),
+      ),
+  );
 
-  if (invalidApprover) {
-    return json(
-      {
-        error:
-          "A kiválasztott jóváhagyó nem tagja a projektnek és nem kijelölt ügyfél-kapcsolattartó.",
-      },
-      { status: 400 },
-    );
+  for (const approverId of approverIds) {
+    const isInternal =
+      internalApprovers.has(approverId);
+    const isClient =
+      clientApprovers.has(approverId);
+
+    if (!isInternal && !isClient) {
+      return json(
+        {
+          error:
+            "A kiválasztott jóváhagyó nem jogosult ennél a projektnél.",
+        },
+        { status: 400 },
+      );
+    }
+
+    if (
+      isClient &&
+      !task?.clientVisible
+    ) {
+      return json(
+        {
+          error:
+            "Ügyfél csak ügyfél számára látható feladat jóváhagyója lehet.",
+        },
+        { status: 400 },
+      );
+    }
   }
 
   await runInTransaction(async (tx) => {
@@ -126,7 +180,9 @@ export async function PUT(request: Request, { params }: Context) {
     await tx.taskApproval.deleteMany({
       where: {
         taskId,
-        approverId: { notIn: approverIds },
+        approverId: {
+          notIn: approverIds,
+        },
       },
     });
 
@@ -147,19 +203,20 @@ export async function PUT(request: Request, { params }: Context) {
     }
   });
 
-  const approvals = await taskApprovalRepository.findMany({
-    where: { taskId },
-    include: {
-      approver: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
+  const approvals =
+    await taskApprovalRepository.findMany({
+      where: { taskId },
+      include: {
+        approver: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
         },
       },
-    },
-    orderBy: { createdAt: "asc" },
-  });
+      orderBy: { createdAt: "asc" },
+    });
 
   return json({
     requiresApproval,

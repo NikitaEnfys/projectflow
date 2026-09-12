@@ -115,22 +115,6 @@ export default async function ProjectDetailsPage({
             </p>
           </div>
         </div>
-
-        <div className="mt-6 border-t border-[#edf0f5] pt-5">
-          <div className="mb-2 flex justify-between text-xs font-semibold text-[#687286]">
-            <span>Előrehaladás</span>
-            <span>{project.progress}%</span>
-          </div>
-
-          <div className="h-2 overflow-hidden rounded-full bg-[#e9ecf3]">
-            <div
-              className="h-full rounded-full bg-gradient-to-r from-[#5b67f1] to-[#7b86f5]"
-              style={{
-                width: `${project.progress}%`,
-              }}
-            />
-          </div>
-        </div>
       </section>
 
       {canManage && (
@@ -160,61 +144,7 @@ export default async function ProjectDetailsPage({
 
       <TaskKanban
         projectId={project.id}
-        tasks={project.tasks.map((task: any) => ({
-          id: task.id,
-          title: task.title,
-          description: task.description,
-          status: task.status,
-          priority: task.priority,
-          dueDate: task.dueDate ?? null,
-          clientVisible: task.clientVisible,
-          requiresApproval: task.requiresApproval,
-          assigneeId: task.assigneeId,
-          creatorId: task.creatorId,
-          milestoneId: task.milestoneId,
-          assignee: task.assignee
-            ? {
-                id: task.assignee.id,
-                name: task.assignee.name,
-                email: task.assignee.email,
-              }
-            : null,
-          creator: {
-            id: task.creator.id,
-            name: task.creator.name,
-            email: task.creator.email,
-          },
-          milestone: task.milestone
-            ? {
-                id: task.milestone.id,
-                name: task.milestone.name,
-              }
-            : null,
-          approvals: task.approvals.map(
-            (approval: any) => ({
-              id: approval.id,
-              approverId: approval.approverId,
-              decision: approval.decision,
-              comment: approval.comment,
-              decidedAt: approval.decidedAt,
-              approver: approval.approver,
-            }),
-          ),
-          comments: task.comments.map(
-            (comment: any) => ({
-              id: comment.id,
-              content: comment.content,
-              visibility: comment.visibility,
-              createdAt: comment.createdAt,
-              authorId: comment.authorId,
-              author: {
-                id: comment.author.id,
-                name: comment.author.name,
-                email: comment.author.email,
-              },
-            }),
-          ),
-        }))}
+        tasks={project.tasks}
         members={taskMembers}
         approvalCandidates={approvalCandidates}
         milestones={project.milestones.map(
@@ -233,19 +163,22 @@ export default async function ProjectDetailsPage({
           id: activity.id,
           action: activity.action,
           message: activity.message,
-          clientVisible: activity.clientVisible,
+          clientVisible:
+            activity.clientVisible,
           createdAt: activity.createdAt,
           user: activity.user
             ? {
                 id: activity.user.id,
                 name: activity.user.name,
-                email: activity.user.email,
+                email:
+                  activity.user.email,
               }
             : null,
           task: activity.task
             ? {
                 id: activity.task.id,
-                title: activity.task.title,
+                title:
+                  activity.task.title,
               }
             : null,
         }))}
