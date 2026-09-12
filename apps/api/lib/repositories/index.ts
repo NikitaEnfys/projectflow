@@ -13,6 +13,7 @@ export const projectMemberRepository = prisma.projectMember;
 export const milestoneRepository = prisma.milestone;
 export const taskRepository = prisma.task;
 export const taskCommentRepository = prisma.taskComment;
+export const taskApprovalRepository = prisma.taskApproval;
 export const activityLogRepository = prisma.activityLog;
 
 export const runInTransaction = prisma.$transaction.bind(prisma);

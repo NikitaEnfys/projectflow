@@ -47,6 +47,7 @@ enum TaskStatus {
   TODO
   IN_PROGRESS
   REVIEW
+  AWAITING_APPROVAL
   BLOCKED
   DONE
 }
@@ -61,6 +62,12 @@ enum TaskPriority {
 enum CommentVisibility {
   INTERNAL
   CLIENT_VISIBLE
+}
+
+enum TaskApprovalDecision {
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 model Organization {
@@ -114,10 +121,10 @@ model OrganizationInvitation {
 }
 
 model User {
-  id         String  @id @default(uuid())
+  id         String   @id @default(uuid())
   name       String
-  email      String  @unique
-  authUserId String? @unique
+  email      String   @unique
+  authUserId String?  @unique
   createdAt  DateTime @default(now())
 
   projects           Project[]                @relation("ProjectOwner")
@@ -128,6 +135,7 @@ model User {
   createdTasks       Task[]                   @relation("TaskCreator")
   sentInvitations    OrganizationInvitation[] @relation("OrganizationInvitationInviter")
   taskComments       TaskComment[]
+  taskApprovals      TaskApproval[]           @relation("TaskApprovalApprover")
   activities         ActivityLog[]
 }
 
@@ -250,15 +258,16 @@ model Milestone {
 }
 
 model Task {
-  id            String       @id @default(uuid())
-  title         String
-  description   String?
-  status        TaskStatus   @default(TODO)
-  priority      TaskPriority @default(MEDIUM)
-  dueDate       DateTime?
-  clientVisible Boolean      @default(false)
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
+  id               String       @id @default(uuid())
+  title            String
+  description      String?
+  status           TaskStatus   @default(TODO)
+  priority         TaskPriority @default(MEDIUM)
+  dueDate          DateTime?
+  clientVisible    Boolean      @default(false)
+  requiresApproval Boolean      @default(false)
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
 
   projectId String
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -273,6 +282,7 @@ model Task {
   creator   User @relation("TaskCreator", fields: [creatorId], references: [id], onDelete: Restrict)
 
   comments   TaskComment[]
+  approvals  TaskApproval[]
   activities ActivityLog[]
 
   @@index([projectId])
@@ -281,6 +291,25 @@ model Task {
   @@index([creatorId])
   @@index([status])
   @@index([priority])
+}
+
+model TaskApproval {
+  id         String               @id @default(uuid())
+  taskId     String
+  approverId String
+  decision   TaskApprovalDecision @default(PENDING)
+  comment    String?
+  decidedAt  DateTime?
+  createdAt  DateTime             @default(now())
+  updatedAt  DateTime             @updatedAt
+
+  task     Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  approver User @relation("TaskApprovalApprover", fields: [approverId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, approverId])
+  @@index([taskId])
+  @@index([approverId])
+  @@index([decision])
 }
 
 model TaskComment {

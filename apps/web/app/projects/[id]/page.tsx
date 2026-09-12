@@ -41,6 +41,7 @@ export default async function ProjectDetailsPage({
     clientViewer,
     candidates: candidateRows,
     taskMembers,
+    approvalCandidates,
     activities,
   } = data;
 
@@ -49,7 +50,9 @@ export default async function ProjectDetailsPage({
       <div className="pf-page-header">
         <div className="min-w-0">
           <p className="pf-eyebrow">Projekt</p>
-          <h1 className="pf-title truncate">{project.name}</h1>
+          <h1 className="pf-title truncate">
+            {project.name}
+          </h1>
           <p className="pf-subtitle">
             {project.description ||
               "Ehhez a projekthez még nincs leírás."}
@@ -92,9 +95,9 @@ export default async function ProjectDetailsPage({
             </p>
             <p className="mt-1.5 font-semibold text-[#3b4458]">
               {project.startDate
-                ? new Date(project.startDate).toLocaleDateString(
-                    "hu-HU",
-                  )
+                ? new Date(
+                    project.startDate,
+                  ).toLocaleDateString("hu-HU")
                 : "Nincs megadva"}
             </p>
           </div>
@@ -105,9 +108,9 @@ export default async function ProjectDetailsPage({
             </p>
             <p className="mt-1.5 font-semibold text-[#3b4458]">
               {project.dueDate
-                ? new Date(project.dueDate).toLocaleDateString(
-                    "hu-HU",
-                  )
+                ? new Date(
+                    project.dueDate,
+                  ).toLocaleDateString("hu-HU")
                 : "Nincs megadva"}
             </p>
           </div>
@@ -122,13 +125,11 @@ export default async function ProjectDetailsPage({
           <div className="h-2 overflow-hidden rounded-full bg-[#e9ecf3]">
             <div
               className="h-full rounded-full bg-gradient-to-r from-[#5b67f1] to-[#7b86f5]"
-              style={{ width: `${project.progress}%` }}
+              style={{
+                width: `${project.progress}%`,
+              }}
             />
           </div>
-
-          <p className="mt-2 text-[11px] text-[#9aa2b1]">
-            Automatikusan a kész feladatok arányából számolva.
-          </p>
         </div>
       </section>
 
@@ -167,6 +168,7 @@ export default async function ProjectDetailsPage({
           priority: task.priority,
           dueDate: task.dueDate ?? null,
           clientVisible: task.clientVisible,
+          requiresApproval: task.requiresApproval,
           assigneeId: task.assigneeId,
           creatorId: task.creatorId,
           milestoneId: task.milestoneId,
@@ -188,24 +190,39 @@ export default async function ProjectDetailsPage({
                 name: task.milestone.name,
               }
             : null,
-          comments: task.comments.map((comment: any) => ({
-            id: comment.id,
-            content: comment.content,
-            visibility: comment.visibility,
-            createdAt: comment.createdAt,
-            authorId: comment.authorId,
-            author: {
-              id: comment.author.id,
-              name: comment.author.name,
-              email: comment.author.email,
-            },
-          })),
+          approvals: task.approvals.map(
+            (approval: any) => ({
+              id: approval.id,
+              approverId: approval.approverId,
+              decision: approval.decision,
+              comment: approval.comment,
+              decidedAt: approval.decidedAt,
+              approver: approval.approver,
+            }),
+          ),
+          comments: task.comments.map(
+            (comment: any) => ({
+              id: comment.id,
+              content: comment.content,
+              visibility: comment.visibility,
+              createdAt: comment.createdAt,
+              authorId: comment.authorId,
+              author: {
+                id: comment.author.id,
+                name: comment.author.name,
+                email: comment.author.email,
+              },
+            }),
+          ),
         }))}
         members={taskMembers}
-        milestones={project.milestones.map((milestone: any) => ({
-          id: milestone.id,
-          name: milestone.name,
-        }))}
+        approvalCandidates={approvalCandidates}
+        milestones={project.milestones.map(
+          (milestone: any) => ({
+            id: milestone.id,
+            name: milestone.name,
+          }),
+        )}
         canManage={canManage}
         clientViewer={clientViewer}
         currentUserId={currentUserId}
@@ -234,13 +251,15 @@ export default async function ProjectDetailsPage({
         }))}
       />
 
-      <ProjectTeamManager
-        projectId={project.id}
-        initialMembers={project.members}
-        candidates={candidateRows}
-        canManage={canManageTeam}
-        currentUserId={currentUserId}
-      />
+      {!clientViewer && (
+        <ProjectTeamManager
+          projectId={project.id}
+          initialMembers={project.members}
+          candidates={candidateRows}
+          canManage={canManageTeam}
+          currentUserId={currentUserId}
+        />
+      )}
     </div>
   );
 }
