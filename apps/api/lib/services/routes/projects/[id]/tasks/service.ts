@@ -18,94 +18,204 @@ import {
 import { refreshProjectProgress } from "@/lib/tasks/progress";
 import { logActivity } from "@/lib/activity/log";
 
-type Context = { params: Promise<{ id: string }> };
+type Context = {
+  params: Promise<{
+    id: string;
+  }>;
+};
+
+const PUBLIC_USER_SELECT = {
+  id: true,
+  name: true,
+  email: true,
+} as const;
 
 function parseDate(value: unknown) {
-  if (value === null || value === "") return null;
-  if (typeof value !== "string") return undefined;
+  if (
+    value === null ||
+    value === ""
+  ) {
+    return null;
+  }
 
-  const date = new Date(`${value}T00:00:00`);
-  return Number.isNaN(date.getTime()) ? undefined : date;
+  if (
+    typeof value !== "string"
+  ) {
+    return undefined;
+  }
+
+  const date = new Date(
+    `${value}T00:00:00`,
+  );
+
+  return Number.isNaN(date.getTime())
+    ? undefined
+    : date;
 }
 
 const taskInclude = {
-  assignee: true,
-  creator: true,
+  assignee: {
+    select: PUBLIC_USER_SELECT,
+  },
+  creator: {
+    select: PUBLIC_USER_SELECT,
+  },
   milestone: true,
   approvals: {
     include: {
       approver: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-        },
+        select: PUBLIC_USER_SELECT,
       },
     },
-    orderBy: { createdAt: "asc" as const },
+    orderBy: {
+      createdAt:
+        "asc" as const,
+    },
   },
   comments: {
-    include: { author: true },
-    orderBy: { createdAt: "asc" as const },
+    include: {
+      author: {
+        select: PUBLIC_USER_SELECT,
+      },
+    },
+    orderBy: {
+      createdAt:
+        "asc" as const,
+    },
   },
 };
 
-export async function GET(_req: Request, { params }: Context) {
-  const { id: projectId } = await params;
-  const user = await requireCurrentUser();
+export async function GET(
+  _req: Request,
+  { params }: Context,
+) {
+  const { id: projectId } =
+    await params;
 
-  await requireProjectAccess(user.id, projectId);
-  const clientViewer = await isClientProjectViewer(user.id, projectId);
+  const user =
+    await requireCurrentUser();
 
-  const tasks = await taskRepository.findMany({
-    where: {
+  await requireProjectAccess(
+    user.id,
+    projectId,
+  );
+
+  const clientViewer =
+    await isClientProjectViewer(
+      user.id,
       projectId,
-      ...(clientViewer ? { clientVisible: true } : {}),
-    },
-    include: {
-      ...taskInclude,
-      comments: {
-        where: clientViewer
-          ? { visibility: "CLIENT_VISIBLE" }
-          : undefined,
-        include: { author: true },
-        orderBy: { createdAt: "asc" },
+    );
+
+  const tasks =
+    await taskRepository.findMany({
+      where: {
+        projectId,
+        ...(clientViewer
+          ? {
+              clientVisible: true,
+            }
+          : {}),
       },
-    },
-    orderBy: [{ dueDate: "asc" }, { createdAt: "asc" }],
-  });
+      include: {
+        ...taskInclude,
+        approvals: clientViewer
+          ? {
+              where: {
+                approverId: user.id,
+              },
+              include: {
+                approver: {
+                  select:
+                    PUBLIC_USER_SELECT,
+                },
+              },
+              orderBy: {
+                createdAt:
+                  "asc",
+              },
+            }
+          : taskInclude.approvals,
+        comments: {
+          where: clientViewer
+            ? {
+                visibility:
+                  "CLIENT_VISIBLE",
+              }
+            : undefined,
+          include: {
+            author: {
+              select:
+                PUBLIC_USER_SELECT,
+            },
+          },
+          orderBy: {
+            createdAt: "asc",
+          },
+        },
+      },
+      orderBy: [
+        { dueDate: "asc" },
+        { createdAt: "asc" },
+      ],
+    });
 
   return json(tasks);
 }
 
-export async function POST(req: Request, { params }: Context) {
+export async function POST(
+  req: Request,
+  { params }: Context,
+) {
   try {
-    const { id: projectId } = await params;
-    const user = await requireCurrentUser();
+    const { id: projectId } =
+      await params;
 
-    if (!(await canManageProject(user.id, projectId))) {
+    const user =
+      await requireCurrentUser();
+
+    if (
+      !(await canManageProject(
+        user.id,
+        projectId,
+      ))
+    ) {
       return json(
-        { error: "Nincs jogosultságod feladat létrehozásához." },
+        {
+          error:
+            "Nincs jogosultságod feladat létrehozásához.",
+        },
         { status: 403 },
       );
     }
 
     const body = await req.json();
+
     const title =
-      typeof body.title === "string" ? body.title.trim() : "";
+      typeof body.title === "string"
+        ? body.title.trim()
+        : "";
 
     if (!title) {
       return json(
-        { error: "A feladat címe kötelező." },
+        {
+          error:
+            "A feladat címe kötelező.",
+        },
         { status: 400 },
       );
     }
 
-    const status = Object.values(TaskStatus).includes(body.status)
-      ? body.status
-      : TaskStatus.TODO;
+    const status =
+      Object.values(
+        TaskStatus,
+      ).includes(body.status)
+        ? body.status
+        : TaskStatus.TODO;
 
-    if (status === TaskStatus.AWAITING_APPROVAL) {
+    if (
+      status ===
+      TaskStatus.AWAITING_APPROVAL
+    ) {
       return json(
         {
           error:
@@ -115,35 +225,53 @@ export async function POST(req: Request, { params }: Context) {
       );
     }
 
-    const priority = Object.values(TaskPriority).includes(body.priority)
-      ? body.priority
-      : TaskPriority.MEDIUM;
+    const priority =
+      Object.values(
+        TaskPriority,
+      ).includes(body.priority)
+        ? body.priority
+        : TaskPriority.MEDIUM;
 
-    const dueDate = parseDate(body.dueDate);
+    const dueDate =
+      parseDate(body.dueDate);
 
-    if (dueDate === undefined) {
+    if (
+      dueDate === undefined
+    ) {
       return json(
-        { error: "Érvénytelen határidő." },
+        {
+          error:
+            "Érvénytelen határidő.",
+        },
         { status: 400 },
       );
     }
 
-    let assigneeId: string | null = null;
+    let assigneeId:
+      | string
+      | null = null;
 
     if (
-      typeof body.assigneeId === "string" &&
+      typeof body.assigneeId ===
+        "string" &&
       body.assigneeId
     ) {
-      const member = await projectMemberRepository.findUnique({
-        where: {
-          projectId_userId: {
-            projectId,
-            userId: body.assigneeId,
+      const member =
+        await projectMemberRepository.findUnique({
+          where: {
+            projectId_userId: {
+              projectId,
+              userId:
+                body.assigneeId,
+            },
           },
-        },
-      });
+        });
 
-      if (!member || member.role === ProjectRole.CLIENT) {
+      if (
+        !member ||
+        member.role ===
+          ProjectRole.CLIENT
+      ) {
         return json(
           {
             error:
@@ -153,22 +281,29 @@ export async function POST(req: Request, { params }: Context) {
         );
       }
 
-      assigneeId = body.assigneeId;
+      assigneeId =
+        body.assigneeId;
     }
 
-    let milestoneId: string | null = null;
+    let milestoneId:
+      | string
+      | null = null;
 
     if (
-      typeof body.milestoneId === "string" &&
+      typeof body.milestoneId ===
+        "string" &&
       body.milestoneId
     ) {
-      const milestone = await milestoneRepository.findFirst({
-        where: {
-          id: body.milestoneId,
-          projectId,
-        },
-        select: { id: true },
-      });
+      const milestone =
+        await milestoneRepository.findFirst({
+          where: {
+            id: body.milestoneId,
+            projectId,
+          },
+          select: {
+            id: true,
+          },
+        });
 
       if (!milestone) {
         return json(
@@ -180,53 +315,67 @@ export async function POST(req: Request, { params }: Context) {
         );
       }
 
-      milestoneId = milestone.id;
+      milestoneId =
+        milestone.id;
     }
 
-    const task = await taskRepository.create({
-      data: {
-        projectId,
-        title,
-        description:
-          typeof body.description === "string" &&
-          body.description.trim()
-            ? body.description.trim()
-            : null,
-        status,
-        priority,
-        dueDate,
-        clientVisible: Boolean(body.clientVisible),
-        assigneeId,
-        milestoneId,
-        creatorId: user.id,
-      },
-      include: taskInclude,
-    });
+    const task =
+      await taskRepository.create({
+        data: {
+          projectId,
+          title,
+          description:
+            typeof body.description ===
+              "string" &&
+            body.description.trim()
+              ? body.description.trim()
+              : null,
+          status,
+          priority,
+          dueDate,
+          clientVisible: Boolean(
+            body.clientVisible,
+          ),
+          assigneeId,
+          milestoneId,
+          creatorId: user.id,
+        },
+        include: taskInclude,
+      });
 
     await Promise.all([
-      refreshProjectProgress(projectId),
+      refreshProjectProgress(
+        projectId,
+      ),
       logActivity({
         projectId,
         taskId: task.id,
         userId: user.id,
-        action: "TASK_CREATED",
+        action:
+          "TASK_CREATED",
         entityType: "Task",
         entityId: task.id,
         message: `Létrehozta a(z) „${task.title}” feladatot.`,
         metadata: {
           status: task.status,
-          priority: task.priority,
-          assigneeId: task.assigneeId,
+          priority:
+            task.priority,
+          assigneeId:
+            task.assigneeId,
         },
-        clientVisible: task.clientVisible,
+        clientVisible:
+          task.clientVisible,
       }),
     ]);
 
-    return json(task, { status: 201 });
+    return json(task, {
+      status: 201,
+    });
   } catch (error) {
     return json(
       {
-        error: "Nem sikerült létrehozni a feladatot.",
+        error:
+          "Nem sikerült létrehozni a feladatot.",
         details:
           error instanceof Error
             ? error.message
