@@ -1,0 +1,1015 @@
+\documentclass[11pt,a4paper]{report}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[magyar]{babel}
+\usepackage{lmodern}
+\usepackage{geometry}
+\usepackage{setspace}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage{caption}
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+\renewcommand{\arraystretch}{1.08}
+
+\geometry{left=2.4cm,right=2.2cm,top=2.0cm,bottom=2.0cm}
+\setstretch{1.15}
+\setlength{\parindent}{0.8cm}
+\setlength{\parskip}{0.08em}
+\setlength{\textfloatsep}{10pt plus 2pt minus 2pt}
+\setlength{\floatsep}{8pt plus 2pt minus 2pt}
+\setlength{\intextsep}{8pt plus 2pt minus 2pt}
+\setlist[itemize]{nosep,leftmargin=1.5em}
+\setlist[enumerate]{nosep,leftmargin=1.7em}
+\setlength{\LTpre}{4pt}
+\setlength{\LTpost}{4pt}
+
+\usepackage{titlesec}
+\titleformat{\chapter}[hang]
+{\normalfont\large\bfseries}
+{\thechapter.}{0.6em}{}
+\titlespacing*{\chapter}{0pt}{0pt}{5pt}
+
+\titleformat{\section}
+{\normalfont\normalsize\bfseries}
+{\thesection}{0.55em}{}
+\titlespacing*{\section}{0pt}{5pt}{2pt}
+
+\titleformat{\subsection}
+{\normalfont\normalsize\bfseries}
+{\thesubsection}{0.5em}{}
+\titlespacing*{\subsection}{0pt}{4pt}{2pt}
+
+
+\hypersetup{colorlinks=true,linkcolor=black,urlcolor=blue,citecolor=black}
+
+\lstdefinestyle{code}{
+    basicstyle=\ttfamily\small,
+    breaklines=true,
+    frame=single,
+    numbers=left,
+    numberstyle=\tiny,
+    xleftmargin=1em,
+    framexleftmargin=0.5em,
+    showstringspaces=false,
+    tabsize=2
+}
+\lstset{style=code}
+
+\newcommand{\projectname}{ProjectFlow}
+\newcommand{\todo}[1]{\textcolor{red}{[TODO: #1]}}
+
+\begin{document}
+
+    \begin{titlepage}
+        \centering
+        {\Large Szegedi Tudományegyetem\par}
+        \vspace{0.4cm}
+        {\large Természettudományi és Informatikai Kar\par}
+        \vfill
+        {\Huge\bfseries SZAKDOLGOZAT\par}
+        \vspace{1.2cm}
+        {\LARGE\bfseries \projectname\\ Webes projekt- és ügyfélkezelő rendszer\par}
+        \vfill
+        \begin{minipage}{0.45\textwidth}
+            \raggedright
+            \textbf{Készítette:}\\
+            Somorjai Lili\\
+            Programtervező Informatikus BSc
+        \end{minipage}
+        \hfill
+        \begin{minipage}{0.45\textwidth}
+            \raggedleft
+            \textbf{Témavezető:}\\
+            Dr. Pengő Edit\\
+
+        \end{minipage}
+        \vfill
+        {\large Szeged\\2026\par}
+    \end{titlepage}
+
+    \tableofcontents
+    \clearpage
+
+    \chapter{Bevezetés}
+
+    \section{Motiváció}
+
+    A \projectname{} ötlete a korábbi webfejlesztői tapasztalataimból indult ki.
+    Az elmúlt időszakban olyan projekteken dolgoztam, ahol vállalkozások számára
+    készítettünk weboldalakat, és a fejlesztés során rendszeresen több különböző
+    szereplőnek kellett együttműködnie. Egy tipikus projektben jelen volt az ügyfél,
+    a projektvezető, egy vagy több fejlesztő, valamint esetenként külső
+    alvállalkozók is.
+
+    A gyakorlatban azt tapasztaltam, hogy a projekt információi gyakran több,
+    egymástól független rendszerben jelentek meg. A feladatok egy projektkezelő
+    felületen szerepeltek, a részletes egyeztetés e-mailben vagy chatalkalmazásban
+    történt, a fájlok külön tárhelyen voltak, az ügyfél visszajelzései pedig sokszor
+    nem közvetlenül ahhoz a feladathoz kapcsolódtak, amelyről szóltak.
+
+    Ez adta az alapötletet egy olyan rendszer létrehozásához, amely ugyanazon
+    alkalmazáson belül képes kezelni az ügyfeleket, projekteket, feladatokat,
+    projektcsapattagokat, mérföldköveket, kommenteket és jóváhagyási folyamatokat.
+
+    \section{A dolgozat célja}
+
+    A dolgozat célja a \projectname{} megtervezési és fejlesztési folyamatának
+    bemutatása. A hangsúly nem csupán a kész funkciók felsorolásán van, hanem azon
+    is, hogyan változott a rendszer a fejlesztés során, milyen problémák merültek
+    fel, és ezek milyen architekturális vagy adatmodellbeli döntésekhez vezettek.
+
+    A fő célok:
+    \begin{itemize}
+        \item több szervezet adatainak elkülönített kezelése;
+        \item szervezeti és projektszintű szerepkörök támogatása;
+        \item ügyfelek és ügyfél-kapcsolattartók kezelése;
+        \item projektek, mérföldkövek és feladatok létrehozása;
+        \item ügyfél és belső csapat eltérő jogosultságainak kezelése;
+        \item belső és ügyfél számára látható kommentek támogatása;
+        \item feladatok jóváhagyási folyamatának megvalósítása;
+        \item a fontos műveletek aktivitásnaplóban történő rögzítése;
+        \item a frontend és a backend üzleti logikájának szétválasztása.
+    \end{itemize}
+
+    \chapter{A rendszer fő funkciói}
+
+    \section{Szervezetek és szerepkörök}
+
+    A rendszer központi egysége a szervezet (\texttt{Organization}). Egy
+    felhasználó egy szervezethez az \texttt{OrganizationMember} kapcsolaton
+    keresztül tartozhat.
+
+    A szervezeti szerepkörök:
+    \begin{itemize}
+        \item \texttt{OWNER},
+        \item \texttt{ADMIN},
+        \item \texttt{PROJECT\_MANAGER},
+        \item \texttt{MEMBER},
+        \item \texttt{CONTRACTOR},
+        \item \texttt{CLIENT}.
+    \end{itemize}
+
+    A projekt szintjén külön szerepkör-rendszert alkalmaztam. Erre azért volt
+    szükség, mert ugyanaz a felhasználó szervezeti és projektszinten eltérő
+    felelősséggel rendelkezhet.
+
+    \section{Ügyfélkezelés}
+
+    A \texttt{Client} modell egy ügyfélcéget reprezentál. Ettől külön választottam
+    a \texttt{ClientContact} modellt, amely egy konkrét kapcsolattartót ír le.
+    A kapcsolat szándékosan opcionális a \texttt{User} felé, így egy kapcsolattartó
+    akkor is eltárolható, ha még nincs saját \projectname{} fiókja.
+
+    \section{Projektkezelés}
+
+    Minden projekt egy szervezethez és egy ügyfélhez kapcsolódik. A projekthez
+    tartozik projektvezető, projektcsapat, ügyfél-kapcsolattartók, mérföldkövek,
+    feladatok és aktivitásnapló.
+
+    \section{Feladatkezelés}
+
+    A feladatok Kanban nézetben jelennek meg. A státuszok:
+    \begin{itemize}
+        \item \texttt{TODO},
+        \item \texttt{IN\_PROGRESS},
+        \item \texttt{REVIEW},
+        \item \texttt{AWAITING\_APPROVAL},
+        \item \texttt{BLOCKED},
+        \item \texttt{DONE}.
+    \end{itemize}
+
+    A feladatokhoz prioritás, határidő, felelős, mérföldkő és
+    \texttt{clientVisible} jelző tartozhat.
+
+    \chapter{Felhasznált technológiák}
+
+    \section{Next.js és React}
+
+    A frontend és a backend is Next.js alapokra épül, de két külön alkalmazásban.
+    Az \texttt{apps/web} a felhasználói felületet, az \texttt{apps/api} pedig a
+    HTTP API-t valósítja meg. A két alkalmazás külön porton fut, így fejlesztés
+    közben a böngészőből érkező kérések tényleges HTTP kommunikáción keresztül
+    érik el a backendet.
+
+    A frontend az App Router felépítését használja. A szerverkomponensek olyan
+    adatokat kérnek le, amelyek az oldal első megjelenítéséhez szükségesek, míg a
+    klienskomponensek kezelik az interaktív műveleteket, például a taskok
+    szerkesztését, a Kanban drag-and-drop működését, a kommentelést és a
+    jóváhagyási döntéseket.
+
+    A frontend és az API szétválasztása azért volt fontos tervezési döntés, mert
+    így az üzleti szabályok nem a megjelenítési réteghez kötődnek. A frontend
+    feladata elsősorban az adatok megjelenítése és a felhasználói műveletek
+    elküldése, míg a jogosultsági és állapotkezelési szabályok a backendben
+    maradnak.
+
+    \section{TypeScript}
+
+    A teljes alkalmazás TypeScript alapú. A típusosság különösen hasznos a nagyobb
+    adatstruktúrák, jogosultsági objektumok és a frontend és backend között
+    megosztott szerződések kezelésében.
+
+    A közös típusok egy része a \texttt{packages/contracts} workspace-ben
+    található. Ide kerültek például az autentikációs request/response típusok és a
+    közösen használt szerepkör-definíciók. Ez csökkenti annak esélyét, hogy a
+    frontend és a backend ugyanazt az adatstruktúrát eltérően értelmezze.
+
+    A TypeScript a jogosultsági logikánál is fontos: a taskhoz visszaadott
+    permission objektum konkrét mezőkkel írja le, hogy az adott user milyen
+    műveleteket hajthat végre. Így egy új jogosultság hozzáadásakor fordítási időben
+    is láthatóvá válik, hol kell azt kezelni.
+
+    \section{Tailwind CSS}
+
+    A felhasználói felület stílusozását Tailwind CSS segítségével valósítottam meg.
+
+    \section{Prisma ORM és PostgreSQL}
+
+    Az üzleti adatokat PostgreSQL adatbázisban tárolom. Az alkalmazás a Prisma ORM
+    segítségével kommunikál az adatbázissal.
+
+    A Prisma séma deklaratívan írja le a modelleket, enumokat, relációkat,
+    egyediségi feltételeket és indexeket. A fejlesztés során minden jelentősebb
+    adatmodell-változást külön migrációban vezettem be. Ez különösen hasznos volt a
+    fázisos fejlesztésnél, mert a korábbi adatok megtartása mellett lehetett új
+    táblákat, enumokat és kapcsolatokat hozzáadni.
+
+    A service réteg nem közvetlen SQL utasításokat használ. A perzisztencia a
+    repository-kon és a Prisma kliensen keresztül történik. Ezzel az adatbázis
+    elérése elkülönül az üzleti szabályoktól, és a lekérdezésekben explicit
+    \texttt{select} és \texttt{include} beállításokkal szabályozható, hogy pontosan
+    milyen adatok kerüljenek vissza.
+
+    \section{Supabase Auth}
+
+    A hitelesítést Supabase Auth végzi, míg az üzleti adatokhoz saját Prisma
+    \texttt{User} rekord tartozik. A kettőt a \texttt{User.authUserId} mező
+    kapcsolja össze.
+
+    A backend egy provider interfészen keresztül használja a Supabase szolgáltatást,
+    így az auth-specifikus kód nem terjed szét az alkalmazásban. A
+    \texttt{SupabaseAuthProvider} végzi a bejelentkezést, regisztrációt, auth
+    callback feldolgozását, valamint a meghívott fiókok előkészítését.
+
+    Sikeres hitelesítés után az alkalmazás saját session tokent készít. A token a
+    felhasználó provider azonosítóját, e-mail címét, nevét és lejárati idejét
+    tartalmazza, majd HMAC-SHA256 aláírást kap. A token HttpOnly cookie-ban kerül
+    eltárolásra, ezért kliensoldali JavaScriptből közvetlenül nem olvasható.
+
+    \chapter{A rendszer architektúrája}
+
+    \section{Monorepo felépítés}
+
+    \begin{lstlisting}
+projectflow/
+|-- apps/
+|   |-- web/
+|   `-- api/
+|-- packages/
+|   `-- contracts/
+|-- scripts/
+|-- package.json
+`-- package-lock.json
+    \end{lstlisting}
+
+    \section{Rétegek szétválasztása}
+
+    A backend fejlesztése során fokozatosan az alábbi felépítés alakult ki:
+
+    \begin{center}
+        \texttt{Web $\rightarrow$ HTTP API $\rightarrow$ Service $\rightarrow$ Repository
+            $\rightarrow$ Prisma $\rightarrow$ PostgreSQL}
+    \end{center}
+
+    A route fájlok szándékosan vékonyak. Feladatuk elsősorban a Next.js route és a
+    megfelelő service összekapcsolása. A request feldolgozása, validációja,
+    jogosultságellenőrzése és az üzleti döntések a
+    \texttt{apps/api/lib/services/routes} könyvtárban találhatók.
+
+    A repository réteg a Prisma kliens elérését központosítja. Ennek köszönhetően
+    a service-eknek nem kell mindenhol közvetlenül ismerniük a Prisma
+    implementációját. A jogosultsági helper-ek és a task access logika e fölött a
+    réteg fölött működnek, így egy üzleti művelet előtt külön ellenőrizhető a
+    felhasználó szervezeti, projekt- és erőforrásszintű hozzáférése.
+
+    A projekt részletes oldalához például az \texttt{/overview} service egy
+    összesített válaszobjektumot állít elő. Ebben a backend már előre kiszámítja a
+    felhasználó jogosultságait és a task permission objektumokat, így a frontendnek
+    nem kell a teljes üzleti szabályrendszert újraimplementálnia.
+
+    \section{Hitelesítési architektúra}
+
+    \begin{center}
+        \texttt{Web $\rightarrow$ ProjectFlow API $\rightarrow$ AuthService
+            $\rightarrow$ AuthProvider $\rightarrow$ Supabase Auth}
+    \end{center}
+
+    A frontend nem tartalmaz Supabase-specifikus hitelesítési logikát. A login és
+    register űrlap a ProjectFlow API saját \texttt{/api/auth/*} végpontjait hívja.
+    Az \texttt{AuthService} a provider interfészen keresztül kommunikál a külső
+    auth szolgáltatóval, majd az identity alapján feloldja vagy létrehozza a saját
+    Prisma \texttt{User} rekordot.
+
+    Sikeres hitelesítés után a backend saját aláírt session tokent készít, amely
+    HttpOnly cookie-ban kerül tárolásra. Minden védett kérésnél a backend olvassa
+    és ellenőrzi ezt a tokent, majd a provider azonosító alapján betölti az aktuális
+    üzleti felhasználót és annak szervezeti tagságait.
+
+    Ez a megoldás szétválasztja a hitelesítést és az üzleti jogosultságot: a külső
+    szolgáltató azt igazolja, hogy ki jelentkezett be, a ProjectFlow pedig a saját
+    adatmodellje alapján dönti el, hogy az illető mit láthat vagy módosíthat.
+
+    \chapter{A fejlesztés folyamata}
+
+    A \projectname{} fejlesztése nem egyetlen nagy lépésben történt. A projektet
+    egymásra épülő refaktorálási fázisokra bontottam. Ennek az volt az előnye, hogy
+    minden nagyobb szerkezeti módosítás után külön ellenőrizni tudtam, hogy a korábbi
+    funkciók továbbra is működnek-e, miközben fokozatosan lehetett bevezetni az új
+    adatmodelleket és jogosultsági szabályokat.
+
+    A fejlesztési folyamatban az egyes fázisok nem kizárólag új felhasználói
+    funkciókat jelentettek. Több esetben egy korábban működő megoldást alakítottam
+    át azért, mert a rendszer növekedésével már nem bizonyult elég pontosnak vagy
+    biztonságosnak. A fejezet ezért időrendben mutatja be, hogyan jutott el a
+    kezdeti ügyfél--projekt modelltől a jelenlegi, szervezeti és projektszintű
+    jogosultságokat, kommunikációt és jóváhagyást is kezelő felépítésig.
+
+    \section{A fejlesztési fázisok áttekintése}
+
+    \begin{longtable}{p{0.12\textwidth}p{0.78\textwidth}}
+        \toprule
+        \textbf{Fázis} & \textbf{Fő eredmény} \\
+        \midrule
+        \endhead
+
+        1. &
+        Szervezeti alapok kialakítása, az \texttt{Organization} és
+        \texttt{OrganizationMember} modellek bevezetése, a korábbi adatok
+        szervezethez rendelésének előkészítése. \\
+
+        2. &
+        Projektszintű tagság és az első központi jogosultsági helper réteg
+        bevezetése a \texttt{ProjectMember} és \texttt{ProjectRole} segítségével. \\
+
+        3. &
+        Valódi autentikáció bevezetése Supabase Auth segítségével, valamint a
+        jogosultsági ellenőrzések bekötése a védett oldalak és API-k elé. \\
+
+        4. &
+        Teljes projektcsapat-kezelés: projekttag hozzáadása, szerepkör módosítása,
+        eltávolítása és az utolsó projektvezető védelme. \\
+
+        5. &
+        Szervezeti meghívási folyamat, szerepkörök kezelése és tokenes
+        meghívólinkek. \\
+
+        6. &
+        A projektmenedzsment adatmodell kibővítése státusszal, prioritással,
+        dátumokkal, előrehaladással és mérföldkövekkel. \\
+
+        6.1. &
+        A CLIENT felhasználók konkrét ügyfélcéghez rendelése
+        \texttt{ClientContact} segítségével, valamint a mérföldkövek teljes CRUD
+        kezelése. \\
+
+        7. &
+        A Task modell refaktorálása és a Kanban-alapú feladatkezelés
+        kialakítása. \\
+
+        8. &
+        A kommunikáció, aktivitásnapló, projekt-specifikus ügyfélhozzáférés,
+        jóváhagyási folyamat és további jogosultsági hardening kialakítása. \\
+
+        \bottomrule
+    \end{longtable}
+
+    \section{1. fázis -- szervezeti alapok}
+
+    A projekt legelső adatmodellje még lényegesen egyszerűbb volt. A kezdeti
+    adatbázisban a \texttt{User}, \texttt{Client} és \texttt{Project} modellek
+    jelentették a rendszer magját. A projekt közvetlenül egy ügyfélhez és egy
+    felelős felhasználóhoz kapcsolódott. Ez megfelelő volt az első működő
+    prototípushoz, de nem tudta kezelni azt az esetet, amikor ugyanazt az
+    alkalmazást több, egymástól független vállalkozás használja.
+
+    A következő lépés ezért a szervezeti szint bevezetése volt. Létrejött az
+    \texttt{Organization} modell, valamint az \texttt{OrganizationMember}
+    kapcsolótábla. Ezzel egy felhasználó már nem egyszerűen a teljes rendszerben
+    rendelkezett valamilyen szereppel, hanem egy konkrét szervezethez tartozott.
+
+    Az \texttt{OrganizationRole} enum az alábbi szerepköröket vezette be:
+
+    \begin{itemize}
+        \item \texttt{OWNER},
+        \item \texttt{ADMIN},
+        \item \texttt{PROJECT\_MANAGER},
+        \item \texttt{MEMBER},
+        \item \texttt{CONTRACTOR},
+        \item \texttt{CLIENT}.
+    \end{itemize}
+
+    A meglévő \texttt{Client} és \texttt{Project} rekordok
+    \texttt{organizationId} mezőt kaptak. Mivel a korábbi adatok még nem
+    rendelkeztek szervezeti kapcsolattal, külön bootstrap folyamat készült, amely a
+    meglévő rekordokat az első szervezethez tudta rendelni.
+
+    Ez a fázis alapozta meg a későbbi többfelhasználós működést. A legfontosabb
+    tervezési döntés az volt, hogy a jogosultságokat nem közvetlenül a
+    \texttt{User} modellen tárolom, hanem a felhasználó és a szervezet közötti
+    kapcsolathoz rendelem.
+
+    \section{2. fázis -- projektszintű tagság és jogosultsági alapréteg}
+
+    A szervezeti szerepkörök önmagukban nem bizonyultak elegendőnek. Egy
+    szervezetben dolgozó munkatárs nem feltétlenül vesz részt minden projektben,
+    ezért szükségessé vált a projektszintű tagság bevezetése.
+
+    Ebben a fázisban jött létre a \texttt{ProjectRole} enum és a
+    \texttt{ProjectMember} modell. A meglévő projektfelelősök automatikusan
+    \texttt{PROJECT\_MANAGER} projektszerepkört kaptak, és új projekt
+    létrehozásakor a kiválasztott felelős is automatikusan projektvezetői
+    tagságot kapott.
+
+    Ezzel párhuzamosan létrehoztam az első központi jogosultsági helper réteget a
+    \texttt{lib/permissions.ts} fájlban. Itt jelentek meg többek között a
+    \texttt{canViewProject}, \texttt{canManageProject},
+    \texttt{canManageProjectMembers}, \texttt{canManageClients},
+    \texttt{requireProjectAccess} és \texttt{requireProjectManagement}
+    függvények.
+
+    Fontos döntés volt, hogy ezek a helper-ek már ekkor \texttt{userId}
+    paraméterrel működtek, de valódi autentikáció hiányában még nem használtam őket
+    biztonsági ellenőrzésként az API-kban. Egy nem hitelesített, kézzel megadott
+    felhasználóazonosító ugyanis csak látszólagos védelmet jelentett volna.
+
+    Az előző rendszerrel való kompatibilitás miatt a \texttt{Project.ownerId}
+    mező ebben a fázisban még megmaradt. Az új \texttt{ProjectMember} modell már
+    párhuzamosan létezett mellette, így a rendszer fokozatosan tudott átállni az
+    új projekttagsági logikára.
+
+    \section{3. fázis -- autentikáció és valódi autorizáció}
+
+    A harmadik fázisban került be a valódi felhasználói hitelesítés. A megoldás
+    Supabase Auth integrációra épült, amelyhez elkészült a regisztráció,
+    bejelentkezés, kijelentkezés és az auth callback kezelése.
+
+    Az alkalmazás saját \texttt{User} modelljét nem cseréltem le a Supabase
+    felhasználói modelljére. Ehelyett a \texttt{User.authUserId} mezővel
+    kapcsoltam össze a két réteget. Ha egy már létező ProjectFlow felhasználó azonos
+    e-mail címmel jelentkezett be Supabase Authon keresztül, a rendszer a meglévő
+    rekordhoz kapcsolta az auth azonosítót. Ennek köszönhetően a korábban létrejött
+    szervezeti és projekttagságok nem vesztek el.
+
+    Ebben a fázisban váltak tényleges biztonsági elemmé a korábban elkészített
+    permission helper-ek. A projektlista és a dashboard már a bejelentkezett
+    felhasználó hozzáférése alapján szűrődött, a projekt részletes oldal
+    \texttt{requireProjectAccess} ellenőrzést kapott, és az ügyfél-, projekt- és
+    felhasználói API-k is jogosultsági védelem mögé kerültek.
+
+    A fejlesztés ezen pontján vált különösen fontossá az autentikáció és az
+    autorizáció fogalmának szétválasztása. A Supabase azt igazolja, hogy ki a
+    felhasználó, míg a ProjectFlow saját adatmodellje dönti el, hogy az adott
+    felhasználó mit tehet a rendszerben.
+
+    \section{4. fázis -- projektcsapat-kezelés}
+
+    A \texttt{ProjectMember} adatmodell létrejötte után a következő lépés a teljes
+    projektcsapat-kezelő folyamat megvalósítása volt.
+
+    A projektvezetői felület lehetővé tette:
+    \begin{itemize}
+        \item szervezeti tag hozzáadását a projekthez;
+        \item projektszerepkör megadását;
+        \item projektszerepkör módosítását;
+        \item projekttag eltávolítását.
+    \end{itemize}
+
+    Minden írási művelet előtt szerveroldali jogosultságellenőrzés történt.
+    Projektcsapatot szervezeti \texttt{OWNER}, szervezeti \texttt{ADMIN}, illetve
+    az adott projekt \texttt{PROJECT\_MANAGER} tagja kezelhetett.
+
+    Ebben a fázisban jelent meg egy fontos adatintegritási szabály is: az utolsó
+    projektvezetőt nem lehetett eltávolítani vagy alacsonyabb szerepkörre
+    állítani. Ha egy több projektvezetős projektből a legacy
+    \texttt{Project.ownerId} által jelölt vezetőt eltávolították vagy
+    lefokozták, az \texttt{ownerId} automatikusan átkerült egy másik
+    projektvezetőre.
+
+    Ez jó példa volt arra, hogy egy CRUD művelet önmagában nem elegendő: az
+    üzleti szabályokat az adatok módosításával együtt kell érvényesíteni.
+
+    \section{5. fázis -- szervezeti meghívások}
+
+    A következő fázis célja az volt, hogy ne csak már létező felhasználókat lehessen
+    egy szervezethez rendelni. Ehhez létrejött az
+    \texttt{OrganizationInvitation} modell.
+
+    Egy szervezeti \texttt{OWNER} vagy \texttt{ADMIN} e-mail cím alapján tudott
+    meghívást létrehozni. A meghíváshoz egyedi token és hét napos lejárati idő
+    tartozott. A link megnyitása után a meghívott felhasználó regisztrálhatott vagy
+    bejelentkezhetett, majd elfogadhatta a meghívást.
+
+    A szervezeti szerepkörök kezelése is kibővült. Bevezettem az
+    \texttt{OWNER} védelmét, valamint azt a szabályt, hogy egy
+    \texttt{ADMIN} nem kezelhet másik \texttt{ADMIN} szerepkörű tagot.
+
+    Szervezetből történő eltávolításkor az adott szervezethez tartozó
+    projekttagságokat is meg kellett szüntetni. Ezzel elkerülhetővé vált, hogy egy
+    már nem szervezeti tag felhasználó régi projektkapcsolatokon keresztül továbbra
+    is hozzáférjen adatokhoz.
+
+    \section{6. fázis -- a projektmenedzsment modell kibővítése}
+
+    A korábbi fázisok főleg a többfelhasználós működés és a jogosultságkezelés
+    alapjait építették ki. A hatodik fázisban ismét a projektmenedzsment
+    funkcionalitás került előtérbe.
+
+    A \texttt{Project} modell új mezőket kapott:
+    \begin{itemize}
+        \item \texttt{status};
+        \item \texttt{priority};
+        \item \texttt{startDate};
+        \item \texttt{dueDate};
+        \item \texttt{progress};
+        \item \texttt{updatedAt}.
+    \end{itemize}
+
+    A projekt státusza a \texttt{PLANNING}, \texttt{ACTIVE},
+    \texttt{ON\_HOLD}, \texttt{COMPLETED} és \texttt{CANCELLED} értékek
+    egyike lehetett. A prioritás külön enumot kapott.
+
+    Ebben a fázisban készült el a \texttt{Milestone} modell is. A mérföldkőhöz
+    név, leírás, státusz, határidő és projektkapcsolat tartozik. A projektvezető,
+    szervezeti admin és owner létrehozhatott mérföldkövet, míg a többi projekttag
+    csak olvasási jogosultságot kapott.
+
+    A jogosultsági szabályok is pontosításra kerültek. A backend API és a navigáció
+    egyaránt figyelembe vette, hogy az adott szerepkör hozhat-e létre ügyfelet vagy
+    projektet. Ezzel a frontend és a backend működése közelebb került egymáshoz:
+    nem csak a menüpont tűnt el, hanem közvetlen API-hívással sem lehetett
+    jogosulatlan műveletet végrehajtani.
+
+    \section{6.1. fázis -- CLIENT stabilizálás és ClientContact}
+
+    A hatodik fázis tesztelése során két hiányosság vált láthatóvá. Az egyik az
+    volt, hogy a \texttt{CLIENT} szervezeti szerepkör még nem mondta meg, melyik
+    konkrét ügyfélcéghez tartozik a felhasználó. A másik, hogy a mérföldkövek csak
+    létrehozhatók voltak, teljes szerkesztési és törlési folyamat még nem tartozott
+    hozzájuk.
+
+    A megoldás a \texttt{ClientContact} modell bevezetése lett. A rekord
+    tartalmazza:
+    \begin{itemize}
+        \item a kapcsolódó ügyfélcéget;
+        \item az opcionális ProjectFlow felhasználót;
+        \item a kapcsolattartó nevét;
+        \item e-mail címét;
+        \item opcionális pozícióját.
+    \end{itemize}
+
+    Az \texttt{OrganizationInvitation} modell \texttt{clientId} mezőt kapott,
+    és \texttt{CLIENT} meghívás esetén kötelezővé vált az ügyfélcég kiválasztása.
+
+    Fontos tervezési döntés volt, hogy a \texttt{Client} továbbra is a céget, a
+    \texttt{ClientContact} pedig a konkrét személyt jelenti. Így egy ügyfélcéghez
+    több kapcsolattartó is tartozhat, és nem szükséges minden kapcsolattartónak
+    ProjectFlow-fiókkal rendelkeznie.
+
+    A mérföldkő-kezelés ezzel párhuzamosan teljes CRUD működést kapott:
+    létrehozás, szerkesztés, státusz- és határidő-módosítás, valamint törlés.
+
+    \section{7. fázis -- Task refaktor és Kanban}
+
+    A hetedik fázisban a feladatkezelést alakítottam át jelentősen. A korábbi
+    egyszerű Task modell enum alapú státuszt és prioritást kapott, valamint
+    megjelent a felelős, a létrehozó, a mérföldkő, a határidő és az
+    ügyfél-láthatóság.
+
+    A task státuszai ebben a fázisban:
+    \begin{itemize}
+        \item \texttt{TODO},
+        \item \texttt{IN\_PROGRESS},
+        \item \texttt{REVIEW},
+        \item \texttt{BLOCKED},
+        \item \texttt{DONE}.
+    \end{itemize}
+
+    A jogosultsági szabályok szerepkörtől függtek. Az owner, admin és az adott
+    projekt projektvezetője teljes taskkezelést kapott. A
+    \texttt{MEMBER} és \texttt{CONTRACTOR} a saját magára kiosztott task
+    státuszát módosíthatta, míg a \texttt{CLIENT} csak a
+    \texttt{clientVisible = true} feladatokat láthatta.
+
+    A frontend ekkor kapta meg a Kanban alapú megjelenítést. A feladatok státusz
+    szerinti oszlopokban jelentek meg, és a jogosultsággal rendelkező felhasználók
+    drag-and-drop módon is mozgathatták őket.
+
+    A projekt előrehaladása automatikusan számolhatóvá vált a lezárt taskok
+    arányából:
+
+    \begin{center}
+        \texttt{progress = DONE taskok száma / összes task száma * 100}
+    \end{center}
+
+    A migráció során a meglévő feladatok megmaradtak. A korábbi string státuszok
+    enum értékekké alakultak, és a régi taskok létrehozójaként a projekt korábbi
+    \texttt{ownerId} felhasználója került beállításra.
+
+    \section{8. fázis -- kommunikáció, ügyfélfolyamatok és jóváhagyás}
+
+    A nyolcadik fázisban a cél már nem egyetlen új alapmodell létrehozása volt,
+    hanem a korábban kialakított projekt- és taskrendszer valós együttműködési
+    folyamatokkal történő kibővítése.
+
+    Elsőként a taskokhoz kommentrendszer került. A
+    \texttt{TaskComment} modell kétféle láthatóságot kezel:
+    \texttt{INTERNAL} és \texttt{CLIENT\_VISIBLE}. Ez lehetővé tette, hogy a
+    belső csapat ugyanazon a taskon belül belső megjegyzéseket írjon, miközben az
+    ügyfélnek szánt kommunikáció is közvetlenül a feladathoz kapcsolódik.
+
+    A kommentekkel együtt \texttt{ActivityLog} modell is létrejött. Az
+    aktivitásnapló rögzíti a fontosabb projekt- és taskműveleteket, így a projekt
+    története a felületen is visszakövethetővé vált.
+
+    A következő probléma az ügyfél-hozzáférés pontossága volt. A
+    \texttt{ClientContact} kapcsolat önmagában még túl tág hozzáférést jelentett:
+    egy kapcsolattartó egy ügyfélcég több projektjéhez is hozzáférhetett volna.
+    Ezért létrejött a \texttt{ProjectClientContact} modell, amely már egy konkrét
+    projektet köt össze egy konkrét ügyfél-kapcsolattartóval.
+
+    A hozzáférési modell így a következő lett:
+
+    \begin{center}
+        \texttt{Project $\rightarrow$ ProjectClientContact
+            $\rightarrow$ ClientContact $\rightarrow$ User}
+    \end{center}
+
+    Ezzel az ügyféloldali hozzáférés projekt-specifikussá vált.
+
+    A nyolcadik fázis legösszetettebb új funkciója a task-jóváhagyási folyamat
+    volt. A \texttt{Task} modell \texttt{requiresApproval} mezőt kapott, a
+    jóváhagyók pedig külön \texttt{TaskApproval} rekordokban jelennek meg.
+
+    Új task státusz lett az:
+    \begin{center}
+        \texttt{AWAITING\_APPROVAL}
+    \end{center}
+
+    A jóváhagyási döntések:
+    \begin{itemize}
+        \item \texttt{PENDING},
+        \item \texttt{APPROVED},
+        \item \texttt{REJECTED}.
+    \end{itemize}
+
+    A folyamat tipikusan:
+    \begin{center}
+        \texttt{REVIEW $\rightarrow$ AWAITING\_APPROVAL
+            $\rightarrow$ APPROVED $\rightarrow$ DONE}
+    \end{center}
+
+    Elutasításkor:
+    \begin{center}
+        \texttt{AWAITING\_APPROVAL $\rightarrow$ REJECTED
+            $\rightarrow$ IN\_PROGRESS}
+    \end{center}
+
+    A jóváhagyási logika három külön műveletre lett bontva:
+    \begin{itemize}
+        \item a jóváhagyási konfiguráció mentése;
+        \item a task jóváhagyásra küldése;
+        \item a kijelölt jóváhagyó döntése.
+    \end{itemize}
+
+    A funkciók növekedésével egy másik szerkezeti probléma is előtérbe került:
+    egyre több helyen kellett eldönteni, hogy az aktuális user mit tehet egy adott
+    taskkal. A frontend és a különböző API service-ek párhuzamos
+    jogosultságkezelése hosszú távon könnyen eltérhetett volna.
+
+    Ezért létrejött a központi task access réteg az
+    \texttt{apps/api/lib/tasks/access.ts} fájlban. A backend explicit módon
+    számolja többek között a következő jogosultságokat:
+
+    \begin{lstlisting}
+canView
+canEdit
+canDelete
+canChangeStatus
+canComment
+canModerateComments
+canConfigureApproval
+canSubmitForApproval
+canDecideApproval
+    \end{lstlisting}
+
+    A frontend ezek alapján jeleníti meg az egyes vezérlőket, ugyanakkor a valódi
+    biztonsági ellenőrzés továbbra is szerveroldalon történik.
+
+    A nyolcadik fázis végén további hardening lépésekre is szükség volt.
+    Szerepkörváltáskor gondoskodni kellett arról, hogy ne maradjanak vissza régi
+    projekttagságok vagy task-hozzárendelések, ugyanakkor egy ügyfél
+    \texttt{ClientContact} CRM-rekordja se törlődjön csak azért, mert megszűnik a
+    felhasználói hozzáférése. Emiatt a CRM-adat és a ProjectFlow-fiók kapcsolata
+    külön életciklust kapott.
+
+    Az API-válaszoknál adatminimalizálást is bevezettem: a teljes
+    \texttt{User} rekord helyett ahol lehet, csak az
+    \texttt{id}, \texttt{name} és \texttt{email} mezők kerülnek vissza a
+    frontendnek.
+
+    \section{A fázisos fejlesztés tanulságai}
+
+    A fázisokra bontott fejlesztés egyik fő előnye az volt, hogy az adatmodell és a
+    jogosultságkezelés fokozatosan tudott alkalmazkodni a valósabb használati
+    esetekhez.
+
+    A második fázisban még elegendőnek tűnt egy általános
+    \texttt{ProjectMember} kapcsolat, a hatodik fázis után azonban már külön
+    ügyfél-kapcsolattartói modellre volt szükség. A hetedik fázisban a
+    \texttt{clientVisible} mező elegendőnek látszott az ügyféloldali tasknézethez,
+    később viszont kiderült, hogy magának a projekthez való hozzáférésnek is
+    projekt-specifikusnak kell lennie.
+
+    Hasonló fejlődés figyelhető meg a jogosultságkezelésben is. A kezdeti
+    permission helper-ekből először valódi szerveroldali autorizáció, majd
+    erőforrás-specifikus task permission objektum alakult ki.
+
+    Ez a folyamat jól mutatja, hogy a rendszer architektúrája nem előre,
+    változatlanul rögzített tervként készült el. Az egyes megoldásokat folyamatosan
+    ellenőriztem a következő fejlesztési lépések és a manuális tesztelés során,
+    majd ahol szükséges volt, az adatmodellt vagy a jogosultsági szabályokat is
+    refaktoráltam.
+
+    \chapter{A frontend fejlesztése}
+
+    \section{Fő oldalak}
+
+    A frontend főbb oldalai:
+    \begin{itemize}
+        \item bejelentkezés és regisztráció;
+        \item dashboard;
+        \item projektlista;
+        \item új projekt létrehozása;
+        \item projekt részletes oldal;
+        \item ügyféllista és ügyféladatlap;
+        \item szervezeti beállítások;
+        \item meghívás elfogadása.
+    \end{itemize}
+
+    \section{Projekt részletes oldal}
+
+    A projektoldal a backend \texttt{/overview} végpontjáról kapja a szükséges
+    adatokat, majd több külön komponensben jeleníti meg a mérföldköveket, taskokat,
+    aktivitásokat és projektcsapatot.
+
+    \section{Kanban}
+
+    A Kanban hat oszlopot használ:
+    \begin{center}
+        \texttt{TODO | IN\_PROGRESS | REVIEW | AWAITING\_APPROVAL | BLOCKED | DONE}
+    \end{center}
+
+    A frontend drag-and-drop műveleteket támogat, de minden státuszváltást a backend
+    is validál.
+
+    \section{Szerepkörfüggő felület}
+
+    A felület az API által visszaadott jogosultságok alapján jeleníti meg a
+    műveleteket. Például ügyfél nem kap task szerkesztési felületet, approval
+    konfiguráció csak megfelelő jogosultsággal jelenik meg, és az ügyfél nem lát
+    belső kommentet.
+
+    \chapter{Biztonság és jogosultságkezelés}
+
+    \section{Szerveroldali autorizáció}
+
+    A frontend jogosultsági megjelenítése csak UX funkció. A valódi védelem
+    backend oldalon történik.
+
+    \section{Session cookie}
+
+    A saját session token HttpOnly cookie-ban kerül tárolásra. Production
+    környezetben \texttt{secure} beállítást kap és \texttt{SameSite=Lax}
+    politikát használ.
+
+    \section{CORS}
+
+    A frontend és az API külön porton fut, ezért fejlesztési környezetben CORS
+    beállítás szükséges. Az API a konfigurált \texttt{WEB\_ORIGIN} origin számára
+    engedélyezi a szükséges HTTP metódusokat.
+
+    Az API proxy az \texttt{OPTIONS} preflight kérésekre külön válaszol, és
+    beállítja az \texttt{Access-Control-Allow-Origin},
+    \texttt{Access-Control-Allow-Methods},
+    \texttt{Access-Control-Allow-Headers} és
+    \texttt{Access-Control-Allow-Credentials} fejléceket. Mivel a session cookie
+    credentialként kerül továbbításra, a frontend fetch hívásai
+    \texttt{credentials: "include"} beállítást használnak.
+
+    A jóváhagyási konfiguráció bevezetésekor külön hiba forrása volt, hogy a
+    \texttt{PUT} metódus kezdetben nem szerepelt az engedélyezett CORS metódusok
+    között. Ez jól mutatta, hogy a frontend és backend funkcionális helyessége
+    mellett az infrastruktúra-szintű HTTP konfigurációt is együtt kell kezelni.
+
+    \section{Adatminimalizálás}
+
+    A frontendnek csak a megjelenítéshez szükséges mezőket adja vissza az API.
+
+
+    \section{E-mail provider réteg}
+
+    A szervezeti meghívók e-mail küldését provider interfész mögé helyeztem. Az
+    üzleti service-ek nem közvetlenül a Nodemailer SMTP implementációt hívják,
+    hanem a központi \texttt{getEmailProvider()} factory-t.
+
+    A jelenlegi implementáció SMTP-t használ. A kapcsolatot környezeti változók
+    határozzák meg, például a host, port, secure mód, felhasználónév, jelszó és
+    feladó. Ha az e-mail szolgáltatás nincs konfigurálva vagy a küldés sikertelen,
+    a meghívás ettől még létrejön, és a rendszer kézzel megosztható meghívólinket
+    biztosít.
+
+    Ez a réteg azért hasznos, mert később egy másik e-mail szolgáltatóra történő
+    váltásnál nem kell módosítani a meghívási üzleti logikát, csak új provider
+    adaptert kell készíteni.
+
+
+    \chapter{Fejlesztés közben felmerült problémák}
+
+    \section{Frontend és backend jogosultságok eltérése}
+
+    A funkciók számának növekedésével problémát jelentett volna, ha a frontend és
+    a backend külön-külön ugyanazt a jogosultsági logikát tartja fenn. Ezt a
+    backend által számított permission objektum oldotta meg.
+
+    \section{Ügyfél-hozzáférés túl széles értelmezése}
+
+    A korábbi ügyfél-hozzáférési modell túl sok projektet tehetett láthatóvá.
+    A \texttt{ProjectClientContact} modell bevezetésével a hozzáférés
+    projekt-specifikussá vált.
+
+    \section{CRM-adat és hozzáférés összekeverése}
+
+    A CRM kapcsolattartó törlése nem azonos a felhasználói hozzáférés
+    megszüntetésével. A javított megoldás ezért csak a user-kapcsolatot bontja,
+    a CRM rekordot megőrzi.
+
+    \section{Approval és státuszok}
+
+    A jóváhagyás bevezetése után a korábbi egyszerű
+    \texttt{REVIEW $\rightarrow$ DONE} folyamat már nem volt elegendő. A
+    szerveroldali státuszlogikát úgy módosítottam, hogy jóváhagyásköteles task
+    csak az approval folyamat eredményeként kerülhessen \texttt{DONE} állapotba.
+
+    \chapter{Tesztelés}
+
+    A jelenlegi projektben a fejlesztés során elsősorban manuális funkcionális
+    tesztelést végeztem.
+
+    A fontosabb ellenőrzési esetek:
+    \begin{itemize}
+        \item különböző szerepkörök projekt-hozzáférése;
+        \item ügyfél számára nem látható taskok elrejtése;
+        \item belső kommentek elrejtése ügyfél elől;
+        \item task státuszváltások;
+        \item approval és rejection;
+        \item meghívó elfogadása;
+        \item szerepkörváltás;
+        \item CRM-adatok megőrzése.
+    \end{itemize}
+
+    A repository jelenlegi állapotában még nincs teljes automatizált
+    unit/integration tesztcsomag. Ez a következő fejlesztési feladatok egyike.
+
+    \chapter{Továbbfejlesztési lehetőségek}
+
+    \begin{itemize}
+        \item automatizált unit és integration tesztek;
+        \item GitHub Actions alapú CI;
+        \item production deployment;
+        \item részletesebb értesítési rendszer;
+        \item fájlkezelés és csatolmányok;
+        \item approval history;
+        \item riportok és dashboard statisztikák;
+        \item auditálhatóbb eseménynapló;
+        \item nagy frontend komponensek további bontása;
+        \item SaaS jellegű továbbfejlesztés.
+    \end{itemize}
+
+    \chapter{Összefoglalás}
+
+    A \projectname{} fejlesztése során egy egyszerű projekt- és ügyfélkezelő
+    alkalmazásból fokozatosan egy több szerepkört és összetettebb üzleti
+    folyamatokat kezelő rendszer alakult ki.
+
+    A fejlesztés egyik legfontosabb tanulsága az volt, hogy egy üzleti alkalmazás
+    megbízhatóságát nem csak a látható funkciók száma határozza meg, hanem az
+    adatmodell következetessége, a szerveroldali jogosultságkezelés és az üzleti
+    fogalmak megfelelő szétválasztása is.
+
+    A jelenlegi rendszer támogatja a szervezetek, ügyfelek, projektek,
+    mérföldkövek és feladatok kezelését, a szerepkör-alapú hozzáférést, a
+    kommentelést, a jóváhagyási folyamatot, a meghívásokat és az aktivitásnaplót.
+
+    \appendix
+
+    \chapter{Tervezett ábrák és képernyőképek}
+
+    \begin{enumerate}
+        \item teljes rendszerarchitektúra;
+        \item egyszerűsített ER diagram;
+        \item hitelesítési folyamat;
+        \item jogosultsági modell;
+        \item meghívási folyamat;
+        \item task életciklus és approval folyamat;
+        \item projektlista;
+        \item projekt részletes oldal;
+        \item Kanban;
+        \item task részletek és kommentek;
+        \item jóváhagyói nézet;
+        \item szervezet- és ügyfélkezelő nézet.
+    \end{enumerate}
+
+    \chapter{Fontosabb forrásfájlok}
+
+    A megvalósítás szempontjából legfontosabb forrásfájlokat az alábbi táblázat
+    foglalja össze. Az elérési útvonalakat tördelhető formában adtam meg, hogy
+    keskenyebb oldalszélességnél se folyjanak össze.
+
+    \begin{longtable}{L{0.43\textwidth}L{0.47\textwidth}}
+        \toprule
+        \textbf{Fájl} & \textbf{Szerepe} \\
+        \midrule
+        \endhead
+
+        \footnotesize\path{apps/api/prisma/schema.prisma}
+        &
+        Az adatmodell, kapcsolatok, enumok és főbb adatbázis-korlátozások definíciója.
+        \\[3pt]
+
+        \footnotesize\path{apps/api/lib/auth/service.ts}
+        &
+        Az autentikáció üzleti rétege, amely az auth providert és a saját User
+        rekordokat kapcsolja össze.
+        \\[3pt]
+
+        \footnotesize\path{apps/api/lib/permissions.ts}
+        &
+        A szervezeti és projektszintű hozzáférési szabályok központi helper rétege.
+        \\[3pt]
+
+        \footnotesize\path{apps/api/lib/tasks/access.ts}
+        &
+        A task-specifikus jogosultságok és a frontendnek visszaadott permission
+        objektumok számítása.
+        \\[3pt]
+
+        \footnotesize\path{apps/api/lib/services/routes/projects/[id]/overview/service.ts}
+        &
+        A projekt részletes nézetéhez szükséges összesített adatok és jogosultságok
+        előállítása.
+        \\[3pt]
+
+        \footnotesize\path{apps/api/lib/services/routes/projects/[id]/tasks/[taskId]/service.ts}
+        &
+        A task szerkesztésének, státuszváltásának és törlésének szerveroldali szabályai.
+        \\[3pt]
+
+        \footnotesize\path{apps/api/lib/services/routes/projects/[id]/tasks/[taskId]/comments/service.ts}
+        &
+        A kommentek listázása és létrehozása, beleértve az ügyfél-láthatósági
+        szabályokat.
+        \\[3pt]
+
+        \footnotesize\path{apps/api/lib/services/routes/projects/[id]/tasks/[taskId]/approvals/submit/service.ts}
+        &
+        A feladat jóváhagyásra küldésének üzleti logikája.
+        \\[3pt]
+
+        \footnotesize\path{apps/api/lib/services/routes/projects/[id]/tasks/[taskId]/approvals/[approvalId]/decision/service.ts}
+        &
+        A jóváhagyási és elutasítási döntések kezelése.
+        \\[3pt]
+
+        \footnotesize\path{apps/api/lib/services/routes/organizations/[id]/members/service.ts}
+        &
+        A szervezeti szerepkörváltások, projekttagságok és CRM-adatintegritási
+        szabályok kezelése.
+        \\[3pt]
+
+        \footnotesize\path{apps/web/components/task-kanban.tsx}
+        &
+        A Kanban, task szerkesztés, kommentelés és approval fő frontend komponense.
+        \\
+
+        \bottomrule
+    \end{longtable}
+
+\end{document}
