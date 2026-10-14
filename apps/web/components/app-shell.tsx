@@ -33,7 +33,12 @@ function NavIcon({ icon }: { icon: NavItem["icon"] }) {
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [access, setAccess] = useState<Access | null>(null);
-  const [mobileOpen, setMobileOpen] = useState(false);
+  const [mobileMenu, setMobileMenu] = useState({
+    pathname,
+    open: false,
+  });
+  const mobileOpen =
+    mobileMenu.pathname === pathname && mobileMenu.open;
   const authPage = pathname.startsWith("/login") || pathname.startsWith("/register") || pathname.startsWith("/auth/") || pathname.startsWith("/invite/");
 
   useEffect(() => {
@@ -44,7 +49,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       .catch(() => setAccess(null));
   }, [authPage, pathname]);
 
-  useEffect(() => setMobileOpen(false), [pathname]);
+  function setMobileOpen(open: boolean) {
+    setMobileMenu({
+      pathname,
+      open,
+    });
+  }
 
   if (authPage) {
     return <main className="min-h-screen px-5 py-8 sm:px-8">{children}</main>;
@@ -80,6 +90,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <Link
               key={item.href}
               href={item.href}
+              onClick={() => setMobileOpen(false)}
               className={`group flex items-center gap-3 rounded-xl px-3 py-2.5 ${active ? "bg-[#eef0ff] text-[#4652d8]" : "text-[#596376] hover:bg-[#f7f8fc] hover:text-[#242c40]"}`}
             >
               <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${active ? "bg-white shadow-sm" : "bg-[#f7f8fb] group-hover:bg-white"}`}><NavIcon icon={item.icon} /></span>

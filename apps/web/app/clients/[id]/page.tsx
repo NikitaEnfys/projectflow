@@ -10,18 +10,48 @@ type ClientPageProps = {
   params: Promise<{ id: string }>;
 };
 
+type AccessResponse = {
+  canManageClients: boolean;
+};
+
+type ClientContact = {
+  id: string;
+  name: string;
+  email: string;
+  position: string | null;
+  userId: string | null;
+};
+
+type ClientProject = {
+  id: string;
+  name: string;
+  description: string | null;
+  owner: {
+    id: string;
+    name: string;
+    email: string;
+  } | null;
+};
+
+type ClientDetails = {
+  id: string;
+  name: string;
+  contacts: ClientContact[];
+  projects: ClientProject[];
+};
+
 export default async function ClientDetailsPage({
   params,
 }: ClientPageProps) {
   const { id } = await params;
 
-  let client: any;
-  let access: any;
+  let client: ClientDetails;
+  let access: AccessResponse;
 
   try {
     [client, access] = await Promise.all([
-      serverApi<any>(`/api/clients/${id}`),
-      serverApi<any>("/api/access"),
+      serverApi<ClientDetails>(`/api/clients/${id}`),
+      serverApi<AccessResponse>("/api/access"),
     ]);
   } catch (error) {
     if (
@@ -63,7 +93,7 @@ export default async function ClientDetailsPage({
           clientId={client.id}
           initialName={client.name}
           initialContacts={client.contacts.map(
-            (contact: any) => ({
+            (contact) => ({
               id: contact.id,
               name: contact.name,
               email: contact.email,
@@ -91,7 +121,7 @@ export default async function ClientDetailsPage({
           ) : (
             <div className="mt-4 space-y-3">
               {client.contacts.map(
-                (contact: any) => (
+                (contact) => (
                   <div
                     key={contact.id}
                     className="rounded-xl border border-[#e9ecf2] bg-[#fbfcff] p-4"
@@ -133,7 +163,7 @@ export default async function ClientDetailsPage({
           </div>
         ) : (
           <div className="grid gap-4 lg:grid-cols-2">
-            {client.projects.map((project: any) => (
+            {client.projects.map((project) => (
               <Link
                 href={`/projects/${project.id}`}
                 key={project.id}

@@ -16,11 +16,12 @@ import {
 } from "@/lib/auth/access";
 import { canCreateProject } from "@/lib/permissions";
 
-const PROJECT_OWNER_ROLES = new Set([
-  OrganizationRole.OWNER,
-  OrganizationRole.ADMIN,
-  OrganizationRole.PROJECT_MANAGER,
-]);
+const PROJECT_OWNER_ROLES =
+  new Set<OrganizationRole>([
+    OrganizationRole.OWNER,
+    OrganizationRole.ADMIN,
+    OrganizationRole.PROJECT_MANAGER,
+  ]);
 
 const PUBLIC_USER_SELECT = {
   id: true,
@@ -43,6 +44,28 @@ function parseDate(value: unknown) {
   return Number.isNaN(date.getTime())
     ? null
     : date;
+}
+
+function normalizeStringIds(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const ids = value.reduce<string[]>(
+    (result, item: unknown) => {
+      if (
+        typeof item === "string" &&
+        item.trim()
+      ) {
+        result.push(item);
+      }
+
+      return result;
+    },
+    [],
+  );
+
+  return [...new Set(ids)];
 }
 
 export async function GET() {
@@ -189,21 +212,9 @@ export async function POST(
     }
 
     const requestedContactIds =
-      Array.isArray(
+      normalizeStringIds(
         body.clientContactIds,
-      )
-        ? [
-            ...new Set(
-              body.clientContactIds.filter(
-                (
-                  id: unknown,
-                ): id is string =>
-                  typeof id === "string" &&
-                  Boolean(id),
-              ),
-            ),
-          ]
-        : [];
+      );
 
     const primaryClientContactId =
       typeof body.primaryClientContactId ===

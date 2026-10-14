@@ -9,6 +9,137 @@ type ProjectPageProps = {
   params: Promise<{ id: string }>;
 };
 
+type UserRef = {
+  id: string;
+  name: string;
+  email: string;
+};
+
+type ProjectMember = {
+  id: string;
+  userId: string;
+  role: "PROJECT_MANAGER" | "MEMBER" | "CONTRACTOR" | "CLIENT";
+  user: UserRef;
+};
+
+type Candidate = {
+  userId: string;
+  name: string;
+  email: string;
+  organizationRole: string;
+};
+
+type Milestone = {
+  id: string;
+  name: string;
+  description: string | null;
+  status: string;
+  dueDate: string | null;
+};
+
+type TaskPermissions = {
+  canView: boolean;
+  canEdit: boolean;
+  canDelete: boolean;
+  canChangeStatus: boolean;
+  canComment: boolean;
+  canModerateComments: boolean;
+  canConfigureApproval: boolean;
+  canSubmitForApproval: boolean;
+  canDecideApproval: boolean;
+};
+
+type TaskComment = {
+  id: string;
+  content: string;
+  visibility: string;
+  createdAt: string;
+  authorId: string;
+  author: UserRef;
+};
+
+type TaskApproval = {
+  id: string;
+  approverId: string;
+  decision: "PENDING" | "APPROVED" | "REJECTED";
+  comment: string | null;
+  decidedAt: string | null;
+  approver: UserRef;
+};
+
+type Task = {
+  id: string;
+  title: string;
+  description: string | null;
+  status: string;
+  priority: string;
+  dueDate: string | null;
+  clientVisible: boolean;
+  requiresApproval: boolean;
+  permissions: TaskPermissions;
+  myApproval: TaskApproval | null;
+  assigneeId: string | null;
+  creatorId: string;
+  milestoneId: string | null;
+  assignee: UserRef | null;
+  creator: UserRef;
+  milestone: {
+    id: string;
+    name: string;
+  } | null;
+  comments: TaskComment[];
+  approvals: TaskApproval[];
+};
+
+type TaskMember = UserRef & {
+  role: string;
+};
+
+type ApprovalCandidate = UserRef & {
+  source: string;
+  clientApprover?: boolean;
+};
+
+type Activity = {
+  id: string;
+  action: string;
+  message: string;
+  clientVisible: boolean;
+  createdAt: string;
+  user: UserRef | null;
+  task: {
+    id: string;
+    title: string;
+  } | null;
+};
+
+type ProjectOverviewResponse = {
+  project: {
+    id: string;
+    name: string;
+    description: string | null;
+    status: string;
+    priority: string;
+    startDate: string | null;
+    dueDate: string | null;
+    client: {
+      name: string;
+    };
+    owner: UserRef;
+    milestones: Milestone[];
+    tasks: Task[];
+    members: ProjectMember[];
+  };
+  currentUserId: string;
+  canManage: boolean;
+  canManageTeam: boolean;
+  clientViewer: boolean;
+  candidates: Candidate[];
+  taskMembers: TaskMember[];
+  approvalCandidates: ApprovalCandidate[];
+  activities: Activity[];
+};
+
 const STATUS_LABELS: Record<string, string> = {
   PLANNING: "Tervezés",
   ACTIVE: "Aktív",
@@ -29,7 +160,7 @@ export default async function ProjectDetailsPage({
 }: ProjectPageProps) {
   const { id } = await params;
 
-  const data = await serverApi<any>(
+  const data = await serverApi<ProjectOverviewResponse>(
     `/api/projects/${id}/overview`,
   );
 
@@ -134,7 +265,7 @@ export default async function ProjectDetailsPage({
       <MilestoneManager
         projectId={project.id}
         initialMilestones={project.milestones.map(
-          (milestone: any) => ({
+          (milestone) => ({
             ...milestone,
             dueDate: milestone.dueDate ?? null,
           }),
@@ -148,7 +279,7 @@ export default async function ProjectDetailsPage({
         members={taskMembers}
         approvalCandidates={approvalCandidates}
         milestones={project.milestones.map(
-          (milestone: any) => ({
+          (milestone) => ({
             id: milestone.id,
             name: milestone.name,
           }),
@@ -159,7 +290,7 @@ export default async function ProjectDetailsPage({
       />
 
       <ActivityFeed
-        activities={activities.map((activity: any) => ({
+        activities={activities.map((activity) => ({
           id: activity.id,
           action: activity.action,
           message: activity.message,

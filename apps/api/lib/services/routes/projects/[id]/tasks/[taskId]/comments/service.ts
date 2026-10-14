@@ -183,7 +183,7 @@ export async function POST(
     );
   }
 
-  let visibility =
+  let visibility: CommentVisibility =
     CommentVisibility.INTERNAL;
 
   if (clientViewer) {

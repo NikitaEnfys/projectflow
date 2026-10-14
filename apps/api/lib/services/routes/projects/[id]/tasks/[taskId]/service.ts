@@ -28,24 +28,34 @@ function parseDate(value: unknown) {
     : date;
 }
 
+const PUBLIC_USER_SELECT = {
+  id: true,
+  name: true,
+  email: true,
+} as const;
+
 const taskInclude = {
-  assignee: true,
-  creator: true,
+  assignee: {
+    select: PUBLIC_USER_SELECT,
+  },
+  creator: {
+    select: PUBLIC_USER_SELECT,
+  },
   milestone: true,
   approvals: {
     include: {
       approver: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-        },
+        select: PUBLIC_USER_SELECT,
       },
     },
     orderBy: { createdAt: "asc" as const },
   },
   comments: {
-    include: { author: true },
+    include: {
+      author: {
+        select: PUBLIC_USER_SELECT,
+      },
+    },
     orderBy: { createdAt: "asc" as const },
   },
 };

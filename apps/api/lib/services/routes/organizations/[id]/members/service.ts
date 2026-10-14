@@ -22,6 +22,11 @@ const EDITABLE =
     OrganizationRole.CLIENT,
   ]);
 
+const ORGANIZATION_MANAGERS = new Set<OrganizationRole>([
+  OrganizationRole.OWNER,
+  OrganizationRole.ADMIN,
+]);
+
 const PUBLIC_USER_SELECT = {
   id: true,
   name: true,
@@ -192,10 +197,7 @@ export async function POST(
 
   if (
     !a ||
-    ![
-      OrganizationRole.OWNER,
-      OrganizationRole.ADMIN,
-    ].includes(a.role)
+    !ORGANIZATION_MANAGERS.has(a.role)
   ) {
     return json(
       {
@@ -388,10 +390,7 @@ export async function PATCH(
 
   if (
     !a ||
-    ![
-      OrganizationRole.OWNER,
-      OrganizationRole.ADMIN,
-    ].includes(a.role)
+    !ORGANIZATION_MANAGERS.has(a.role)
   ) {
     return json(
       {
@@ -707,10 +706,7 @@ export async function DELETE(
 
   if (
     !a ||
-    ![
-      OrganizationRole.OWNER,
-      OrganizationRole.ADMIN,
-    ].includes(a.role)
+    !ORGANIZATION_MANAGERS.has(a.role)
   ) {
     return json(
       {

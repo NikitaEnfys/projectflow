@@ -152,7 +152,10 @@ export default function NewProjectPage() {
     return organization.clients.find((client) => client.id === id) ?? null;
   }, [organization, clientChoice]);
 
-  const availableContacts = existingClient?.contacts ?? [];
+  const availableContacts = useMemo(
+    () => existingClient?.contacts ?? [],
+    [existingClient],
+  );
 
   const selectedExistingContact = useMemo(() => {
     if (!contactChoice.startsWith("existing:")) return null;

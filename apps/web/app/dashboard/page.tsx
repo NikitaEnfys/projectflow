@@ -1,8 +1,30 @@
 import Link from "next/link";
 import { serverApi } from "@/lib/api/server";
 
+type DashboardProject = {
+  id: string;
+  name: string;
+  client: {
+    name: string;
+  } | null;
+  owner: {
+    name: string;
+  } | null;
+};
+
+type DashboardResponse = {
+  user: {
+    id: string;
+    name: string;
+    email: string;
+  };
+  projects: DashboardProject[];
+  organizationCount: number;
+  clientCount: number;
+};
+
 export default async function DashboardPage() {
-  const data = await serverApi<any>("/api/dashboard");
+  const data = await serverApi<DashboardResponse>("/api/dashboard");
   const { user, projects, organizationCount, clientCount } = data;
 
   const stats = [
@@ -46,7 +68,7 @@ export default async function DashboardPage() {
       </div>
 
       {projects.length === 0 ? <div className="p-6"><div className="pf-empty">Nincs számodra elérhető projekt.</div></div> : <div className="divide-y divide-[#edf0f5]">
-        {projects.slice(0, 5).map((project: any) => <Link key={project.id} href={`/projects/${project.id}`} className="group flex flex-wrap items-center justify-between gap-4 px-5 py-4 hover:bg-[#fafbff] sm:px-6">
+        {projects.slice(0, 5).map((project) => <Link key={project.id} href={`/projects/${project.id}`} className="group flex flex-wrap items-center justify-between gap-4 px-5 py-4 hover:bg-[#fafbff] sm:px-6">
           <div className="flex min-w-0 items-center gap-3.5">
             <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#eef0ff] text-sm font-bold text-[#5864e4]">{project.name?.slice(0, 1)?.toUpperCase()}</span>
             <div className="min-w-0">

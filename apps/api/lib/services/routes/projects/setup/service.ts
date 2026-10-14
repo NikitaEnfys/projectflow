@@ -7,19 +7,17 @@ import {
 } from "@/lib/domain/enums";
 import {
   organizationMemberRepository,
-  organizationInvitationRepository,
   organizationRepository,
   runInTransaction,
-  userRepository,
 } from "@/lib/repositories";
 import { requireCurrentUser } from "@/lib/auth/current-user";
 import { sendOrganizationInvitationEmail } from "@/lib/email/invitation";
 
-const CONTENT_MANAGER_ROLES = [
+const CONTENT_MANAGER_ROLES = new Set<OrganizationRole>([
   OrganizationRole.OWNER,
   OrganizationRole.ADMIN,
   OrganizationRole.PROJECT_MANAGER,
-] as const;
+]);
 
 function parseDate(value: unknown) {
   if (typeof value !== "string" || !value) return null;
@@ -33,7 +31,9 @@ export async function GET() {
   const memberships = await organizationMemberRepository.findMany({
     where: {
       userId: currentUser.id,
-      role: { in: [...CONTENT_MANAGER_ROLES] },
+      role: {
+        in: [...CONTENT_MANAGER_ROLES],
+      },
     },
     include: {
       organization: {
@@ -49,7 +49,9 @@ export async function GET() {
           },
           members: {
             where: {
-              role: { in: [...CONTENT_MANAGER_ROLES] },
+              role: {
+                in: [...CONTENT_MANAGER_ROLES],
+              },
             },
             include: { user: true },
             orderBy: { user: { name: "asc" } },
@@ -120,7 +122,7 @@ export async function POST(request: Request) {
 
   if (
     !actorMembership ||
-    !CONTENT_MANAGER_ROLES.includes(actorMembership.role as any)
+    !CONTENT_MANAGER_ROLES.has(actorMembership.role)
   ) {
     return json(
       { error: "Nincs jogosultságod projektet létrehozni ebben a szervezetben." },
@@ -144,7 +146,7 @@ export async function POST(request: Request) {
 
   if (
     !ownerMembership ||
-    !CONTENT_MANAGER_ROLES.includes(ownerMembership.role as any)
+    !CONTENT_MANAGER_ROLES.has(ownerMembership.role)
   ) {
     return json(
       {
@@ -461,7 +463,6 @@ export async function POST(request: Request) {
     if (body.sendInvitation) {
       if (result.invitation) {
         const delivery = await sendOrganizationInvitationEmail({
-          invitationId: result.invitation.id,
           email: result.invitation.email,
           token: result.invitation.token,
           organizationName: organization.name,

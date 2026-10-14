@@ -13,6 +13,28 @@ type Context = {
   params: Promise<{ id: string; taskId: string }>;
 };
 
+function normalizeStringIds(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const ids = value.reduce<string[]>(
+    (result, item: unknown) => {
+      if (
+        typeof item === "string" &&
+        item.trim()
+      ) {
+        result.push(item);
+      }
+
+      return result;
+    },
+    [],
+  );
+
+  return [...new Set(ids)];
+}
+
 export async function PUT(
   request: Request,
   { params }: Context,
@@ -48,21 +70,10 @@ export async function PUT(
     body.requiresApproval,
   );
 
-  const approverIds = Array.isArray(
-    body.approverIds,
-  )
-    ? [
-        ...new Set(
-          body.approverIds.filter(
-            (
-              value: unknown,
-            ): value is string =>
-              typeof value === "string" &&
-              Boolean(value),
-          ),
-        ),
-      ]
-    : [];
+  const approverIds =
+    normalizeStringIds(
+      body.approverIds,
+    );
 
   if (
     requiresApproval &&

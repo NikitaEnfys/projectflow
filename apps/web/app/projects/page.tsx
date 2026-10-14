@@ -2,6 +2,27 @@ import Link from "next/link";
 import { serverApi } from "@/lib/api/server";
 import { ProjectListActions } from "@/components/project-list-actions";
 
+type AccessResponse = {
+  canManageProjects: boolean;
+  canCreateProject: boolean;
+};
+
+type ProjectListItem = {
+  id: string;
+  name: string;
+  description: string | null;
+  status: string;
+  priority: string;
+  dueDate: string | null;
+  progress: number;
+  client: {
+    name: string;
+  } | null;
+  owner: {
+    name: string;
+  } | null;
+};
+
 const STATUS_LABELS: Record<string, string> = {
   PLANNING: "Tervezés",
   ACTIVE: "Aktív",
@@ -12,8 +33,8 @@ const STATUS_LABELS: Record<string, string> = {
 
 export default async function ProjectsPage() {
   const [projects, access] = await Promise.all([
-    serverApi<any[]>("/api/projects"),
-    serverApi<any>("/api/access"),
+    serverApi<ProjectListItem[]>("/api/projects"),
+    serverApi<AccessResponse>("/api/access"),
   ]);
 
   const canManageProjects = Boolean(

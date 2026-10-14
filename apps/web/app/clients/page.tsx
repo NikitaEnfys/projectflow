@@ -2,10 +2,30 @@ import Link from "next/link";
 import { serverApi } from "@/lib/api/server";
 import { ClientListActions } from "@/components/client-list-actions";
 
+type AccessResponse = {
+  canManageClients: boolean;
+  canCreateClient: boolean;
+};
+
+type ClientContact = {
+  id: string;
+  name: string;
+  email: string;
+};
+
+type ClientListItem = {
+  id: string;
+  name: string;
+  contacts: ClientContact[];
+  _count: {
+    projects: number;
+  };
+};
+
 export default async function ClientsPage() {
   const [clients, access] = await Promise.all([
-    serverApi<any[]>("/api/clients"),
-    serverApi<any>("/api/access"),
+    serverApi<ClientListItem[]>("/api/clients"),
+    serverApi<AccessResponse>("/api/access"),
   ]);
 
   const canManageClients = Boolean(
@@ -94,7 +114,7 @@ export default async function ClientsPage() {
                   <div className="space-y-1.5">
                     {client.contacts
                       .slice(0, 3)
-                      .map((contact: any) => (
+                      .map((contact) => (
                         <p
                           key={contact.id}
                           className="truncate text-sm text-[#667084]"

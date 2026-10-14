@@ -5,8 +5,8 @@ import {
   TaskStatus,
 } from "@/lib/domain/enums";
 import {
-  clientContactRepository,
   organizationMemberRepository,
+  projectClientContactRepository,
   projectMemberRepository,
   projectRepository,
   taskApprovalRepository,
@@ -63,40 +63,44 @@ export async function getProjectTaskAccessContext(
     select: {
       id: true,
       organizationId: true,
-      clientId: true,
     },
   });
 
   if (!project) return null;
 
-  const [projectMembership, organizationMembership, clientContact] =
-    await Promise.all([
-      projectMemberRepository.findUnique({
-        where: {
-          projectId_userId: {
-            projectId,
-            userId,
-          },
-        },
-      }),
-      project.organizationId
-        ? organizationMemberRepository.findUnique({
-            where: {
-              organizationId_userId: {
-                organizationId: project.organizationId,
-                userId,
-              },
-            },
-          })
-        : Promise.resolve(null),
-      clientContactRepository.findFirst({
-        where: {
-          clientId: project.clientId,
+  const [
+    projectMembership,
+    organizationMembership,
+    linkedProjectContact,
+  ] = await Promise.all([
+    projectMemberRepository.findUnique({
+      where: {
+        projectId_userId: {
+          projectId,
           userId,
         },
-        select: { id: true },
-      }),
-    ]);
+      },
+    }),
+    project.organizationId
+      ? organizationMemberRepository.findUnique({
+          where: {
+            organizationId_userId: {
+              organizationId: project.organizationId,
+              userId,
+            },
+          },
+        })
+      : Promise.resolve(null),
+    projectClientContactRepository.findFirst({
+      where: {
+        projectId,
+        clientContact: {
+          userId,
+        },
+      },
+      select: { id: true },
+    }),
+  ]);
 
   const manager =
     projectMembership?.role === ProjectRole.PROJECT_MANAGER ||
@@ -116,7 +120,7 @@ export async function getProjectTaskAccessContext(
     !manager &&
     !internalMember &&
     (projectMembership?.role === ProjectRole.CLIENT ||
-      Boolean(clientContact));
+      Boolean(linkedProjectContact));
 
   return {
     userId,

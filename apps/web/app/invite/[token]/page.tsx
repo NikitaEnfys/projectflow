@@ -4,6 +4,23 @@ import { InvitationAccept } from "@/components/invitation-accept";
 import { InvitationAccountSwitch } from "@/components/invitation-account-switch";
 import { InvitationActivate } from "@/components/invitation-activate";
 
+type InvitationResponse = {
+  email: string;
+  role: string;
+  expiresAt: string;
+  suggestedName: string;
+  accountExists: boolean;
+  organization: {
+    name: string;
+  };
+  invitedBy: {
+    name: string;
+  };
+  client: {
+    name: string;
+  } | null;
+};
+
 function MessagePage({
   title,
   text,
@@ -42,10 +59,10 @@ export default async function InvitePage({
 }) {
   const { token } = await params;
 
-  let invitation: any;
+  let invitation: InvitationResponse;
 
   try {
-    invitation = await serverApi<any>(
+    invitation = await serverApi<InvitationResponse>(
       `/api/invitations/${token}`,
     );
   } catch (error) {
