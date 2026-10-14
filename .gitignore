@@ -44,3 +44,18 @@ next-env.d.ts
 
 # Prisma generated clients
 **/app/generated/prisma
+
+
+# LaTeX generated files
+*.aux
+*.log
+*.out
+*.toc
+*.lof
+*.lot
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+
+# Generated thesis PDF
+/dokumentacio/*.pdf
