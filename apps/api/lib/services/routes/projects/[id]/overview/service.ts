@@ -279,7 +279,8 @@ export async function GET(
       },
       include: {
         user: {
-          select: PUBLIC_USER_SELECT,
+          select:
+            PUBLIC_USER_SELECT,
         },
         task: {
           select: {
@@ -335,6 +336,13 @@ export async function GET(
 
   if (!clientViewer) {
     for (const member of project.members) {
+      if (
+        member.role ===
+        ProjectRole.CLIENT
+      ) {
+        continue;
+      }
+
       approvalCandidateMap.set(
         member.user.id,
         {
@@ -343,13 +351,8 @@ export async function GET(
           email:
             member.user.email,
           source:
-            member.role ===
-            ProjectRole.CLIENT
-              ? "Ügyfél"
-              : "Projektcsapat",
-          clientApprover:
-            member.role ===
-            ProjectRole.CLIENT,
+            "Projektcsapat",
+          clientApprover: false,
         },
       );
     }
@@ -446,6 +449,8 @@ export async function GET(
       currentUser.id,
     canManage,
     canManageTeam,
+    canCreateTasks:
+      taskAccessContext.internalMember,
     clientViewer,
     candidates:
       clientViewer

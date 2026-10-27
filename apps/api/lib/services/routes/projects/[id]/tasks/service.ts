@@ -11,10 +11,12 @@ import {
 } from "@/lib/repositories";
 import { requireCurrentUser } from "@/lib/auth/current-user";
 import {
-  canManageProject,
   isClientProjectViewer,
   requireProjectAccess,
 } from "@/lib/permissions";
+import {
+  getProjectTaskAccessContext,
+} from "@/lib/tasks/access";
 import { refreshProjectProgress } from "@/lib/tasks/progress";
 import { logActivity } from "@/lib/activity/log";
 
@@ -173,11 +175,15 @@ export async function POST(
     const user =
       await requireCurrentUser();
 
-    if (
-      !(await canManageProject(
+    const taskContext =
+      await getProjectTaskAccessContext(
         user.id,
         projectId,
-      ))
+      );
+
+    if (
+      !taskContext ||
+      !taskContext.internalMember
     ) {
       return json(
         {
@@ -256,6 +262,20 @@ export async function POST(
         "string" &&
       body.assigneeId
     ) {
+      if (
+        !taskContext.manager &&
+        body.assigneeId !==
+          user.id
+      ) {
+        return json(
+          {
+            error:
+              "Belső munkatársként csak saját magadhoz rendelheted az általad létrehozott feladatot.",
+          },
+          { status: 403 },
+        );
+      }
+
       const member =
         await projectMemberRepository.findUnique({
           where: {

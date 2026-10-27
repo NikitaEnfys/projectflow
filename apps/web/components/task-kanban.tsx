@@ -1,6 +1,7 @@
 "use client";
 
 import { apiFetch } from "@/lib/api/client";
+import { TaskAttachments } from "@/components/task-attachments";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -82,6 +83,7 @@ type Props = {
   approvalCandidates: ApprovalCandidate[];
   milestones: MilestoneRef[];
   canManage: boolean;
+  canCreateTasks: boolean;
   clientViewer: boolean;
   currentUserId: string;
 };
@@ -127,6 +129,7 @@ export function TaskKanban({
   approvalCandidates,
   milestones,
   canManage,
+  canCreateTasks,
   clientViewer,
   currentUserId,
 }: Props) {
@@ -633,7 +636,7 @@ export function TaskKanban({
         </p>
       )}
 
-      {canManage && !clientViewer && (
+      {canCreateTasks && !clientViewer && (
         <form
           onSubmit={createTask}
           className="mb-7 grid gap-3 rounded-xl border border-[#e8ebf1] bg-[#fbfcff] p-4 md:grid-cols-2 xl:grid-cols-4"
@@ -702,7 +705,14 @@ export function TaskKanban({
             }
           >
             <option value="">Nincs felelős</option>
-            {members.map((member) => (
+            {members
+              .filter(
+                (member) =>
+                  canManage ||
+                  member.id ===
+                    currentUserId,
+              )
+              .map((member) => (
               <option
                 key={member.id}
                 value={member.id}
@@ -869,9 +879,14 @@ export function TaskKanban({
                           <span className="font-semibold text-[#b26a00]">
                             Jóváhagyás rád vár
                           </span>
+                        ) : task.status ===
+                          "AWAITING_APPROVAL" ? (
+                          <span className="font-medium text-[#5965df]">
+                            Jóváhagyásra vár
+                          </span>
                         ) : task.requiresApproval ? (
                           <span className="font-medium text-[#5965df]">
-                            Jóváhagyás szükséges
+                            Jóváhagyás beállítva
                           </span>
                         ) : null}
                       </div>
@@ -1431,6 +1446,20 @@ export function TaskKanban({
                 </button>
               </div>
             )}
+
+          <TaskAttachments
+            projectId={projectId}
+            taskId={selected.id}
+            taskClientVisible={
+              selected.clientVisible
+            }
+            canUpload={
+              selected.permissions.canComment
+            }
+            canManage={canManage}
+            clientViewer={clientViewer}
+            currentUserId={currentUserId}
+          />
 
           <div className="mt-6 border-t border-[#edf0f5] pt-5">
             <h4 className="font-semibold">

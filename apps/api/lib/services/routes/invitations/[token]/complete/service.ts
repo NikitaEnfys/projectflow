@@ -2,16 +2,19 @@ import { NextResponse } from "next/server";
 import { OrganizationRole } from "@/lib/domain/enums";
 import {
   organizationInvitationRepository,
-  runInTransaction,
 } from "@/lib/repositories";
 import { getAuthService } from "@/lib/auth/service";
 import { setSessionCookie } from "@/lib/auth/session";
+import { applyOrganizationInvitationMembership } from "@/lib/invitations/apply-membership";
 
 type Ctx = {
   params: Promise<{ token: string }>;
 };
 
-export async function POST(request: Request, { params }: Ctx) {
+export async function POST(
+  request: Request,
+  { params }: Ctx,
+) {
   const { token } = await params;
 
   const invitation =
@@ -19,7 +22,10 @@ export async function POST(request: Request, { params }: Ctx) {
       where: { token },
       include: {
         client: {
-          select: { id: true, name: true },
+          select: {
+            id: true,
+            name: true,
+          },
         },
       },
     });
@@ -42,7 +48,8 @@ export async function POST(request: Request, { params }: Ctx) {
   }
 
   if (
-    invitation.role === OrganizationRole.CLIENT &&
+    invitation.role ===
+      OrganizationRole.CLIENT &&
     !invitation.clientId
   ) {
     return NextResponse.json(
@@ -56,90 +63,52 @@ export async function POST(request: Request, { params }: Ctx) {
 
   const body = await request.json();
   const password =
-    typeof body.password === "string" ? body.password : "";
+    typeof body.password === "string"
+      ? body.password
+      : "";
 
   if (password.length < 6) {
     return NextResponse.json(
-      { error: "A jelszó legalább 6 karakter legyen." },
+      {
+        error:
+          "A jelszó legalább 6 karakter legyen.",
+      },
       { status: 400 },
     );
   }
 
-  const normalizedEmail = invitation.email.toLowerCase();
+  const normalizedEmail =
+    invitation.email.toLowerCase();
 
   const name =
-    typeof body.name === "string" && body.name.trim()
+    typeof body.name === "string" &&
+    body.name.trim()
       ? body.name.trim()
       : normalizedEmail.split("@")[0];
 
   try {
-    /**
-     * The invitation token is the proof that the visitor has access to the
-     * invited e-mail address. For an existing Supabase account we update its
-     * password; for a new address we create a confirmed auth user.
-     *
-     * This intentionally avoids a second "registration" form and also repairs
-     * the common state where the ProjectFlow User row was removed but the
-     * Supabase Auth account still exists.
-     */
-    const prepared = await getAuthService().prepareInvitedAccount({
-      name,
-      email: normalizedEmail,
-      password,
-    });
-
-    await runInTransaction(async (tx) => {
-      await tx.organizationMember.upsert({
-        where: {
-          organizationId_userId: {
-            organizationId: invitation.organizationId,
-            userId: prepared.user.id,
-          },
-        },
-        update: {
-          role: invitation.role,
-        },
-        create: {
-          organizationId: invitation.organizationId,
-          userId: prepared.user.id,
-          role: invitation.role,
-        },
+    const prepared =
+      await getAuthService().prepareInvitedAccount({
+        name,
+        email: normalizedEmail,
+        password,
       });
 
-      if (
-        invitation.role === OrganizationRole.CLIENT &&
-        invitation.clientId
-      ) {
-        await tx.clientContact.upsert({
-          where: {
-            clientId_email: {
-              clientId: invitation.clientId,
-              email: normalizedEmail,
-            },
-          },
-          update: {
-            userId: prepared.user.id,
-            // Existing CRM name is intentionally preserved.
-          },
-          create: {
-            clientId: invitation.clientId,
-            userId: prepared.user.id,
-            name,
-            email: normalizedEmail,
-          },
-        });
-      }
-
-      await tx.organizationInvitation.delete({
-        where: { id: invitation.id },
-      });
+    await applyOrganizationInvitationMembership({
+      invitation,
+      user: prepared.user,
+      preserveExistingClientContactName:
+        true,
     });
 
-    await setSessionCookie(prepared.token);
+    await setSessionCookie(
+      prepared.token,
+    );
 
     return NextResponse.json({
       success: true,
-      organizationId: invitation.organizationId,
+      organizationId:
+        invitation.organizationId,
       user: {
         id: prepared.user.id,
         name: prepared.user.name,

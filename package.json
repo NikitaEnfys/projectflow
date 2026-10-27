@@ -12,8 +12,15 @@
     "dev:api": "npm run dev --workspace @projectflow/api",
     "build": "npm run build --workspace @projectflow/contracts && npm run build --workspace @projectflow/api && npm run build --workspace @projectflow/web",
     "lint": "npm run lint --workspace @projectflow/api && npm run lint --workspace @projectflow/web",
+    "test": "npm run test --workspace @projectflow/api",
+    "test:integration": "npm run test:integration --workspace @projectflow/api",
+    "test:all": "npm test && npm run test:integration",
     "db:generate": "npm run db:generate --workspace @projectflow/api",
     "db:migrate": "npm run db:migrate --workspace @projectflow/api",
-    "db:bootstrap": "node --env-file=apps/api/.env scripts/bootstrap-organization.mjs"
+    "db:bootstrap": "node --env-file=apps/api/.env scripts/bootstrap-organization.mjs",
+    "demo:seed": "node --env-file=apps/api/.env scripts/demo-seed.mjs",
+    "demo:reset": "node --env-file=apps/api/.env scripts/demo-reset.mjs",
+    "demo:auth:provision": "node --env-file=apps/api/.env scripts/demo-auth-provision.mjs",
+    "demo:auth:cleanup": "node --env-file=apps/api/.env scripts/demo-auth-cleanup.mjs"
   }
 }

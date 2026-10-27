@@ -1,70 +1,39 @@
 import {
-  OrganizationRole,
-  ProjectRole,
-  TaskApprovalDecision,
-  TaskStatus,
-} from "@/lib/domain/enums";
-import {
-  organizationMemberRepository,
   projectClientContactRepository,
   projectMemberRepository,
   projectRepository,
+  organizationMemberRepository,
   taskApprovalRepository,
   taskRepository,
 } from "@/lib/repositories";
+import {
+  deriveTaskAccessContext,
+} from "@/lib/tasks/access-policy";
+import {
+  buildTaskPermissions,
+  type TaskAccessContext,
+} from "@/lib/tasks/permission-policy";
 
-export type TaskPermissions = {
-  canView: boolean;
-  canEdit: boolean;
-  canDelete: boolean;
-  canChangeStatus: boolean;
-  canComment: boolean;
-  canModerateComments: boolean;
-  canConfigureApproval: boolean;
-  canSubmitForApproval: boolean;
-  canDecideApproval: boolean;
+export {
+  buildTaskPermissions,
 };
-
-export type TaskAccessContext = {
-  userId: string;
-  projectId: string;
-  manager: boolean;
-  internalMember: boolean;
-  clientViewer: boolean;
-  projectRole: ProjectRole | null;
-};
-
-type TaskForAccess = {
-  id: string;
-  assigneeId: string | null;
-  clientVisible: boolean;
-  requiresApproval: boolean;
-  status: string;
-};
-
-type ApprovalForAccess = {
-  id: string;
-  approverId: string;
-  decision: string;
-} | null;
-
-const ORGANIZATION_CONTENT_MANAGERS = new Set<OrganizationRole>([
-  OrganizationRole.OWNER,
-  OrganizationRole.ADMIN,
-  OrganizationRole.PROJECT_MANAGER,
-]);
+export type {
+  TaskAccessContext,
+  TaskPermissions,
+} from "@/lib/tasks/permission-policy";
 
 export async function getProjectTaskAccessContext(
   userId: string,
   projectId: string,
 ): Promise<TaskAccessContext | null> {
-  const project = await projectRepository.findUnique({
-    where: { id: projectId },
-    select: {
-      id: true,
-      organizationId: true,
-    },
-  });
+  const project =
+    await projectRepository.findUnique({
+      where: { id: projectId },
+      select: {
+        id: true,
+        organizationId: true,
+      },
+    });
 
   if (!project) return null;
 
@@ -102,86 +71,13 @@ export async function getProjectTaskAccessContext(
     }),
   ]);
 
-  const manager =
-    projectMembership?.role === ProjectRole.PROJECT_MANAGER ||
-    Boolean(
-      organizationMembership &&
-        ORGANIZATION_CONTENT_MANAGERS.has(
-          organizationMembership.role,
-        ),
-    );
-
-  const internalMember =
-    manager ||
-    projectMembership?.role === ProjectRole.MEMBER ||
-    projectMembership?.role === ProjectRole.CONTRACTOR;
-
-  const clientViewer =
-    !manager &&
-    !internalMember &&
-    (projectMembership?.role === ProjectRole.CLIENT ||
-      Boolean(linkedProjectContact));
-
-  return {
+  return deriveTaskAccessContext({
     userId,
     projectId,
-    manager,
-    internalMember,
-    clientViewer,
     projectRole: projectMembership?.role ?? null,
-  };
-}
-
-export function buildTaskPermissions(
-  context: TaskAccessContext,
-  task: TaskForAccess,
-  myApproval: ApprovalForAccess,
-): TaskPermissions {
-  const assignedInternal =
-    context.internalMember &&
-    task.assigneeId === context.userId;
-
-  const canView =
-    context.manager ||
-    context.internalMember ||
-    (context.clientViewer && task.clientVisible);
-
-  const canEdit =
-    context.manager &&
-    task.status !== TaskStatus.AWAITING_APPROVAL;
-
-  const canDelete = context.manager;
-
-  const canChangeStatus =
-    canView &&
-    task.status !== TaskStatus.AWAITING_APPROVAL &&
-    (context.manager || assignedInternal);
-
-  const canSubmitForApproval =
-    canView &&
-    task.requiresApproval &&
-    task.status !== TaskStatus.AWAITING_APPROVAL &&
-    task.status !== TaskStatus.DONE &&
-    (context.manager || assignedInternal);
-
-  const canDecideApproval =
-    canView &&
-    task.status === TaskStatus.AWAITING_APPROVAL &&
-    myApproval?.decision === TaskApprovalDecision.PENDING;
-
-  return {
-    canView,
-    canEdit,
-    canDelete,
-    canChangeStatus,
-    canComment: canView,
-    canModerateComments: context.manager,
-    canConfigureApproval:
-      context.manager &&
-      task.status !== TaskStatus.AWAITING_APPROVAL,
-    canSubmitForApproval,
-    canDecideApproval,
-  };
+    organizationRole: organizationMembership?.role ?? null,
+    linkedProjectContact: Boolean(linkedProjectContact),
+  });
 }
 
 export async function resolveTaskAccess(
@@ -206,6 +102,7 @@ export async function resolveTaskAccess(
       },
       select: {
         id: true,
+        creatorId: true,
         assigneeId: true,
         clientVisible: true,
         requiresApproval: true,

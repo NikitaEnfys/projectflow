@@ -136,6 +136,7 @@ model User {
   sentInvitations    OrganizationInvitation[] @relation("OrganizationInvitationInviter")
   taskComments       TaskComment[]
   taskApprovals      TaskApproval[]           @relation("TaskApprovalApprover")
+  taskAttachments    TaskAttachment[]         @relation("TaskAttachmentUploader")
   activities         ActivityLog[]
 }
 
@@ -281,9 +282,10 @@ model Task {
   creatorId String
   creator   User @relation("TaskCreator", fields: [creatorId], references: [id], onDelete: Restrict)
 
-  comments   TaskComment[]
-  approvals  TaskApproval[]
-  activities ActivityLog[]
+  comments    TaskComment[]
+  approvals   TaskApproval[]
+  attachments TaskAttachment[]
+  activities  ActivityLog[]
 
   @@index([projectId])
   @@index([milestoneId])
@@ -327,6 +329,27 @@ model TaskComment {
   @@index([taskId])
   @@index([authorId])
   @@index([visibility])
+}
+
+model TaskAttachment {
+  id           String            @id @default(uuid())
+  taskId       String
+  uploadedById String
+  originalName String
+  storageKey   String            @unique
+  mimeType     String
+  sizeBytes    Int
+  sha256       String
+  visibility   CommentVisibility @default(INTERNAL)
+  createdAt    DateTime          @default(now())
+
+  task       Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  uploadedBy User @relation("TaskAttachmentUploader", fields: [uploadedById], references: [id], onDelete: Restrict)
+
+  @@index([taskId])
+  @@index([uploadedById])
+  @@index([visibility])
+  @@index([createdAt])
 }
 
 model ActivityLog {

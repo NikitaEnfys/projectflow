@@ -133,6 +133,7 @@ type ProjectOverviewResponse = {
   currentUserId: string;
   canManage: boolean;
   canManageTeam: boolean;
+  canCreateTasks: boolean;
   clientViewer: boolean;
   candidates: Candidate[];
   taskMembers: TaskMember[];
@@ -169,6 +170,7 @@ export default async function ProjectDetailsPage({
     currentUserId,
     canManage,
     canManageTeam,
+    canCreateTasks,
     clientViewer,
     candidates: candidateRows,
     taskMembers,
@@ -285,6 +287,7 @@ export default async function ProjectDetailsPage({
           }),
         )}
         canManage={canManage}
+        canCreateTasks={canCreateTasks}
         clientViewer={clientViewer}
         currentUserId={currentUserId}
       />

@@ -2,21 +2,24 @@
   "name": "@projectflow/api",
   "version": "0.2.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "next dev -p 3001",
     "build": "prisma generate && next build",
     "start": "next start -p 3001",
     "lint": "eslint .",
+    "test": "vitest run --exclude tests/integration/**",
+    "test:integration": "node scripts/test-integration.mjs",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate deploy"
   },
   "dependencies": {
-    "@prisma/adapter-pg": "^7.6.0",
-    "@prisma/client": "^7.6.0",
+    "@prisma/adapter-pg": "7.10.1",
+    "@prisma/client": "7.10.1",
     "@projectflow/contracts": "0.2.0",
     "@supabase/supabase-js": "^2.111.0",
-    "next": "16.2.1",
-    "nodemailer": "^10.0.8",
+    "next": "16.4.3",
+    "nodemailer": "10.2.1",
     "pg": "^8.20.0",
     "react": "19.2.4",
     "react-dom": "19.2.4"
@@ -26,8 +29,9 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.2.1",
-    "prisma": "^7.6.0",
-    "typescript": "^5"
+    "eslint-config-next": "16.4.3",
+    "prisma": "7.10.1",
+    "typescript": "^5",
+    "vitest": "5.0.5"
   }
 }

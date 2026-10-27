@@ -1,17 +1,32 @@
-import { json } from "@/lib/http/response";
+import {
+  json,
+} from "@/lib/http/response";
 import {
   taskApprovalRepository,
   taskRepository,
-  runInTransaction,
 } from "@/lib/repositories";
-import { requireCurrentUser } from "@/lib/auth/current-user";
+import {
+  requireCurrentUser,
+} from "@/lib/auth/current-user";
 import {
   TaskApprovalDecision,
-  TaskStatus,
 } from "@/lib/domain/enums";
-import { resolveTaskAccess } from "@/lib/tasks/access";
-import { refreshProjectProgress } from "@/lib/tasks/progress";
-import { logActivity } from "@/lib/activity/log";
+import {
+  resolveTaskAccess,
+} from "@/lib/tasks/access";
+import {
+  ApprovalWorkflowError,
+  decideTaskApproval,
+} from "@/lib/tasks/approval-workflow";
+import {
+  refreshProjectProgress,
+} from "@/lib/tasks/progress";
+import {
+  logActivity,
+} from "@/lib/activity/log";
+import {
+  runBestEffortSideEffects,
+} from "@/lib/side-effects/best-effort";
 
 type Context = {
   params: Promise<{
@@ -30,39 +45,48 @@ export async function POST(
     taskId,
     approvalId,
   } = await params;
-  const user = await requireCurrentUser();
 
-  const access = await resolveTaskAccess(
-    user.id,
-    projectId,
-    taskId,
-  );
+  const user =
+    await requireCurrentUser();
+
+  const access =
+    await resolveTaskAccess(
+      user.id,
+      projectId,
+      taskId,
+    );
 
   if (
     !access ||
     !access.permissions.canView ||
-    !access.permissions.canDecideApproval ||
-    access.myApproval?.id !== approvalId
+    !access.permissions
+      .canDecideApproval ||
+    access.myApproval?.id !==
+      approvalId
   ) {
     return json(
       {
         error:
           "Ehhez a jóváhagyáshoz nincs döntési jogosultságod.",
       },
-      { status: 403 },
+      {
+        status: 403,
+      },
     );
   }
 
   const approval =
     await taskApprovalRepository.findUnique({
-      where: { id: approvalId },
+      where: {
+        id: approvalId,
+      },
       include: {
         task: {
           select: {
             id: true,
             title: true,
-            status: true,
-            clientVisible: true,
+            clientVisible:
+              true,
           },
         },
       },
@@ -70,12 +94,18 @@ export async function POST(
 
   if (!approval) {
     return json(
-      { error: "A jóváhagyás nem található." },
-      { status: 404 },
+      {
+        error:
+          "A jóváhagyás nem található.",
+      },
+      {
+        status: 404,
+      },
     );
   }
 
-  const body = await request.json();
+  const body =
+    await request.json();
 
   const decision =
     body.decision ===
@@ -91,12 +121,15 @@ export async function POST(
         error:
           "Érvénytelen jóváhagyási döntés.",
       },
-      { status: 400 },
+      {
+        status: 400,
+      },
     );
   }
 
   const comment =
-    typeof body.comment === "string" &&
+    typeof body.comment ===
+      "string" &&
     body.comment.trim()
       ? body.comment.trim()
       : null;
@@ -111,101 +144,97 @@ export async function POST(
         error:
           "Elutasításkor indoklás szükséges.",
       },
-      { status: 400 },
+      {
+        status: 400,
+      },
     );
   }
 
-  const result = await runInTransaction(
-    async (tx) => {
-      await tx.taskApproval.update({
-        where: { id: approvalId },
-        data: {
-          decision,
-          comment,
-          decidedAt: new Date(),
-        },
-      });
+  let result;
 
-      if (
-        decision ===
-        TaskApprovalDecision.REJECTED
-      ) {
-        await tx.task.update({
-          where: { id: taskId },
-          data: {
-            status: TaskStatus.IN_PROGRESS,
-          },
-        });
-
-        return {
-          taskStatus:
-            TaskStatus.IN_PROGRESS,
-        };
-      }
-
-      const remaining =
-        await tx.taskApproval.count({
-          where: {
-            taskId,
-            decision: {
-              not:
-                TaskApprovalDecision.APPROVED,
-            },
-          },
-        });
-
-      if (remaining === 0) {
-        await tx.task.update({
-          where: { id: taskId },
-          data: {
-            status: TaskStatus.DONE,
-          },
-        });
-
-        return {
-          taskStatus: TaskStatus.DONE,
-        };
-      }
-
-      return {
-        taskStatus:
-          TaskStatus.AWAITING_APPROVAL,
-      };
-    },
-  );
-
-  await Promise.all([
-    refreshProjectProgress(projectId),
-    logActivity({
-      projectId,
-      taskId,
-      userId: user.id,
-      action:
-        decision ===
-        TaskApprovalDecision.APPROVED
-          ? "TASK_APPROVED"
-          : "TASK_REJECTED",
-      entityType: "TaskApproval",
-      entityId: approvalId,
-      message:
-        decision ===
-        TaskApprovalDecision.APPROVED
-          ? `Jóváhagyta a(z) „${approval.task.title}” feladatot.`
-          : `Elutasította a(z) „${approval.task.title}” feladatot: ${comment}`,
-      metadata: {
+  try {
+    result =
+      await decideTaskApproval({
+        projectId,
+        taskId,
+        approvalId,
+        approverId:
+          user.id,
         decision,
         comment,
-        resultingStatus:
-          result.taskStatus,
+      });
+  } catch (error) {
+    if (
+      error instanceof
+      ApprovalWorkflowError
+    ) {
+      return json(
+        {
+          error:
+            error.message,
+        },
+        {
+          status: 409,
+        },
+      );
+    }
+
+    throw error;
+  }
+
+  await runBestEffortSideEffects(
+    "TASK_APPROVAL_DECISION",
+    [
+      {
+        name:
+          "refreshProjectProgress",
+        run: () =>
+          refreshProjectProgress(
+            projectId,
+          ),
       },
-      clientVisible:
-        approval.task.clientVisible,
-    }),
-  ]);
+      {
+        name:
+          "logActivity",
+        run: () =>
+          logActivity({
+            projectId,
+            taskId,
+            userId:
+              user.id,
+            action:
+              decision ===
+              TaskApprovalDecision.APPROVED
+                ? "TASK_APPROVED"
+                : "TASK_REJECTED",
+            entityType:
+              "TaskApproval",
+            entityId:
+              approvalId,
+            message:
+              decision ===
+              TaskApprovalDecision.APPROVED
+                ? `Jóváhagyta a(z) „${approval.task.title}” feladatot.`
+                : `Elutasította a(z) „${approval.task.title}” feladatot: ${comment}`,
+            metadata: {
+              decision,
+              comment,
+              resultingStatus:
+                result.taskStatus,
+            },
+            clientVisible:
+              approval.task
+                .clientVisible,
+          }),
+      },
+    ],
+  );
 
   const updatedTask =
     await taskRepository.findUnique({
-      where: { id: taskId },
+      where: {
+        id: taskId,
+      },
       include: {
         approvals: {
           include: {
@@ -218,11 +247,14 @@ export async function POST(
             },
           },
           orderBy: {
-            createdAt: "asc",
+            createdAt:
+              "asc",
           },
         },
       },
     });
 
-  return json(updatedTask);
+  return json(
+    updatedTask,
+  );
 }

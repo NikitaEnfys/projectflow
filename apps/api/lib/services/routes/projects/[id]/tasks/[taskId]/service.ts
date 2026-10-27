@@ -283,6 +283,20 @@ export async function PATCH(
     if (!body.assigneeId) {
       data.assigneeId = null;
     } else {
+      if (
+        !access.context.manager &&
+        body.assigneeId !==
+          user.id
+      ) {
+        return json(
+          {
+            error:
+              "Belső munkatársként csak saját magadhoz rendelheted a saját feladatodat.",
+          },
+          { status: 403 },
+        );
+      }
+
       const member =
         await projectMemberRepository.findUnique({
           where: {

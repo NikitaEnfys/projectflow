@@ -59,3 +59,38 @@ next-env.d.ts
 
 # Generated thesis PDF
 /dokumentacio/*.pdf
+
+# Local development notes
+/dokumentacio/fejlesztesi-naplo/
+
+# Temporary local patch/apply scripts
+/scripts/apply-phase*.mjs
+
+# IDE
+.idea/
+
+# Local ProjectFlow file storage fallback
+.projectflow/
+# Local development notes
+/dokumentacio/fejlesztesi-naplo/
+
+# Temporary patch scripts
+/scripts/apply-phase*.mjs
+
+# IDE
+.idea/
+
+# Local file storage fallback
+.projectflow/
+
+# Local development notes
+/dokumentacio/fejlesztesi-naplo/
+
+# Temporary patch scripts
+/scripts/apply-phase*.mjs
+
+# IDE
+.idea/
+
+# Local file storage fallback
+.projectflow/
