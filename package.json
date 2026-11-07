@@ -18,6 +18,7 @@
     "db:generate": "npm run db:generate --workspace @projectflow/api",
     "db:migrate": "npm run db:migrate --workspace @projectflow/api",
     "db:bootstrap": "node --env-file=apps/api/.env scripts/bootstrap-organization.mjs",
+    "storage:bootstrap": "node --env-file=apps/api/.env scripts/storage-bootstrap.mjs",
     "demo:seed": "node --env-file=apps/api/.env scripts/demo-seed.mjs",
     "demo:reset": "node --env-file=apps/api/.env scripts/demo-reset.mjs",
     "demo:auth:provision": "node --env-file=apps/api/.env scripts/demo-auth-provision.mjs",

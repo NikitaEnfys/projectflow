@@ -5,7 +5,7 @@ import {
 } from "vitest";
 import {
   isRetryableTransactionError,
-} from "@/lib/repositories";
+} from "@/lib/repositories/transaction-retry";
 
 describe(
   "isRetryableTransactionError",

@@ -4,6 +4,10 @@ import {
 import {
   prisma,
 } from "@/lib/prisma";
+import {
+  isRetryableTransactionError,
+} from "@/lib/repositories/transaction-retry";
+
 
 // Persistence adapters. Application services import these names rather than Prisma.
 export const organizationRepository =
@@ -41,47 +45,6 @@ export const runInTransaction =
   prisma.$transaction.bind(
     prisma,
   );
-
-export function isRetryableTransactionError(
-  error: unknown,
-): boolean {
-  if (
-    typeof error !== "object" ||
-    error === null
-  ) {
-    return false;
-  }
-
-  const candidate =
-    error as {
-      code?: unknown;
-      originalCode?: unknown;
-      kind?: unknown;
-      cause?: unknown;
-    };
-
-  if (
-    candidate.code ===
-    "P2034"
-  ) {
-    return true;
-  }
-
-  if (
-    candidate.originalCode ===
-      "40001" ||
-    candidate.kind ===
-      "TransactionWriteConflict"
-  ) {
-    return true;
-  }
-
-  return candidate.cause
-    ? isRetryableTransactionError(
-        candidate.cause,
-      )
-    : false;
-}
 
 export async function runSerializableTransaction<T>(
   work: (
